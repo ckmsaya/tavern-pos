@@ -1,196 +1,268 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-
-type Product = {
-  id: string;
-  name: string;
-  stock: number;
-};
-
-type Sale = {
-  payment_method: string;
-  total: number;
-  staff_name: string;
-  items: any[];
-  created_at: string;
-};
+import { supabase } from "../../lib/supabase";
 
 export default function Dashboard() {
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [soldToday, setSoldToday] = useState<Record<string, number>>({});
-  const [staffTotals, setStaffTotals] = useState<Record<string, number>>({});
+  const [products, setProducts] = useState<any[]>([]);
+  const [todayRevenue, setTodayRevenue] = useState(0);
+  const [transactions, setTransactions] = useState(0);
+
+  const [weeklyRevenue, setWeeklyRevenue] = useState(0);
+  const [weeklyTransactions, setWeeklyTransactions] = useState(0);
+
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
+  const [monthlyTransactions, setMonthlyTransactions] = useState(0);
+
+  const [topMonthly, setTopMonthly] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchProducts();
-    fetchSales();
+
+    loadDashboard();
+
+    const interval = setInterval(() => {
+      loadDashboard();
+    }, 8000);
+
+    return () => clearInterval(interval);
+
   }, []);
 
-  async function fetchProducts() {
+  async function loadDashboard() {
 
-    const { data } = await supabase
+    const { data: productData } = await supabase
       .from("products")
-      .select("id,name,stock")
+      .select("*")
       .order("name");
 
-    if (data) setProducts(data);
-
-  }
-
-  async function fetchSales() {
+    if (productData) setProducts(productData);
 
     const today = new Date();
-    today.setHours(0,0,0,0);
+    const todayString = today.toISOString().split("T")[0];
 
-    const { data } = await supabase
+    const weekAgo = new Date();
+    weekAgo.setDate(today.getDate() - 7);
+
+    const monthAgo = new Date();
+    monthAgo.setMonth(today.getMonth() - 1);
+
+    const { data: todaySales } = await supabase
       .from("sales")
       .select("*")
-      .gte("created_at", today.toISOString());
+      .gte("created_at", todayString);
 
-    if (!data) return;
+    if (todaySales) {
 
-    setSales(data);
+      let revenue = 0;
+      todaySales.forEach(s => revenue += s.total);
 
-    const counts: Record<string, number> = {};
-    const staff: Record<string, number> = {};
+      setTodayRevenue(revenue);
+      setTransactions(todaySales.length);
 
-    data.forEach((sale: any) => {
+    }
 
-      if (!staff[sale.staff_name]) {
-        staff[sale.staff_name] = 0;
-      }
+    const { data: weekSales } = await supabase
+      .from("sales")
+      .select("*")
+      .gte("created_at", weekAgo.toISOString());
 
-      staff[sale.staff_name] += sale.total;
+    if (weekSales) {
 
-      if (!sale.items) return;
+      let revenue = 0;
+      weekSales.forEach(s => revenue += s.total);
 
-      sale.items.forEach((item: any) => {
+      setWeeklyRevenue(revenue);
+      setWeeklyTransactions(weekSales.length);
 
-        if (!counts[item.id]) {
-          counts[item.id] = 0;
-        }
+    }
 
-        counts[item.id] += item.quantity;
+    const { data: monthSales } = await supabase
+      .from("sales")
+      .select("*")
+      .gte("created_at", monthAgo.toISOString());
 
-      });
+    if (monthSales) {
 
-    });
+      let revenue = 0;
+      monthSales.forEach(s => revenue += s.total);
 
-    setSoldToday(counts);
-    setStaffTotals(staff);
+      setMonthlyRevenue(revenue);
+      setMonthlyTransactions(monthSales.length);
+
+    }
+
+    if (productData) {
+
+      const ranked = productData
+        .map(p => ({
+          name: p.name,
+          sold: (p.opening_stock ?? 0) - p.stock
+        }))
+        .sort((a, b) => b.sold - a.sold)
+        .slice(0, 5);
+
+      setTopMonthly(ranked);
+
+    }
 
   }
 
-  const totalRevenue = sales.reduce((sum, s) => sum + s.total, 0);
+  function downloadReport() {
 
-  const cashTotal = sales
-    .filter(s => s.payment_method === "cash")
-    .reduce((sum, s) => sum + s.total, 0);
+    const report = `
+TAVERN MONTHLY REPORT
 
-  const cardTotal = sales
-    .filter(s => s.payment_method === "card")
-    .reduce((sum, s) => sum + s.total, 0);
+Revenue: R${monthlyRevenue}
+Transactions: ${monthlyTransactions}
+
+Top Sellers
+${topMonthly.map(p => `${p.name} - ${p.sold}`).join("\n")}
+`;
+
+    const blob = new Blob([report], { type: "text/plain" });
+
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+
+    a.href = url;
+    a.download = "tavern_monthly_report.txt";
+
+    a.click();
+
+  }
+
+  const lowStock = products.filter(p => p.stock <= 10);
 
   return (
-    <main style={{ padding: "40px", fontFamily: "sans-serif" }}>
 
-      <h1>Tavern Dashboard</h1>
+    <div style={{ padding: 30, fontFamily: "Arial" }}>
 
-      <h2 style={{ marginTop: "20px" }}>
-        Today's Revenue: R{totalRevenue}
-      </h2>
+      <h1 style={{ marginBottom: 20 }}>🍻 Tavern Dashboard</h1>
 
-      <p>Cash Sales: R{cashTotal}</p>
-      <p>Card Sales: R{cardTotal}</p>
-      <p>Total Transactions: {sales.length}</p>
+      {/* REPORTS */}
 
-      <h2 style={{ marginTop: "40px" }}>
-        Staff Performance
-      </h2>
+      <div style={{ display: "flex", gap: 40, marginBottom: 30 }}>
+
+        <div style={{ background: "#111", padding: 20, borderRadius: 10, width: 250 }}>
+          <h3>Weekly Report</h3>
+          <p>Revenue: <b>R{weeklyRevenue}</b></p>
+          <p>Transactions: <b>{weeklyTransactions}</b></p>
+        </div>
+
+        <div style={{ background: "#111", padding: 20, borderRadius: 10, width: 250 }}>
+          <h3>Monthly Report</h3>
+          <p>Revenue: <b>R{monthlyRevenue}</b></p>
+          <p>Transactions: <b>{monthlyTransactions}</b></p>
+
+          <button
+            onClick={downloadReport}
+            style={{
+              marginTop: 10,
+              padding: "8px 14px",
+              background: "#2c2c2c",
+              color: "white",
+              borderRadius: 6,
+              border: "none",
+              cursor: "pointer"
+            }}
+          >
+            ⬇ Download Report
+          </button>
+
+        </div>
+
+      </div>
+
+      {/* ALERTS */}
+
+      <div style={{ display: "flex", gap: 60, marginBottom: 30 }}>
+
+        <div>
+
+          <h3 style={{ color: "red" }}>⚠ Low Stock</h3>
+
+          {lowStock.map(item => (
+
+            <div key={item.id} style={{ marginBottom: 4 }}>
+              {item.name} — {item.stock} left
+            </div>
+
+          ))}
+
+        </div>
+
+        <div>
+
+          <h3 style={{ color: "#FFD700" }}>🔥 Top Sellers</h3>
+
+          {topMonthly.map((item, i) => (
+
+            <div key={i}>
+              {item.name} — {item.sold}
+            </div>
+
+          ))}
+
+        </div>
+
+      </div>
+
+      {/* INVENTORY TABLE */}
+
+      <h2>Inventory</h2>
 
       <table
         style={{
           width: "100%",
           borderCollapse: "collapse",
-          marginTop: "20px"
+          marginTop: 10
         }}
       >
 
         <thead>
-          <tr>
-            <th style={{ borderBottom: "1px solid #ccc", textAlign: "left" }}>
-              Staff
-            </th>
-            <th style={{ borderBottom: "1px solid #ccc", textAlign: "left" }}>
-              Sales Today
-            </th>
+
+          <tr style={{ background: "#222", color: "white" }}>
+            <th style={{ padding: 10 }}>Product</th>
+            <th>Category</th>
+            <th>Price</th>
+            <th>Opening</th>
+            <th>Stock</th>
+            <th>Sold Today</th>
           </tr>
+
         </thead>
 
         <tbody>
 
-          {Object.entries(staffTotals).map(([staff, total]) => (
+          {products.map(p => {
 
-            <tr key={staff}>
-              <td>{staff}</td>
-              <td>R{total}</td>
-            </tr>
+            const soldToday = (p.opening_stock ?? 0) - p.stock;
 
-          ))}
+            return (
+
+              <tr key={p.id} style={{ borderBottom: "1px solid #333" }}>
+
+                <td style={{ padding: 8 }}>{p.name}</td>
+                <td style={{ textAlign: "center" }}>{p.category}</td>
+                <td style={{ textAlign: "center" }}>R{p.price}</td>
+                <td style={{ textAlign: "center" }}>{p.opening_stock}</td>
+                <td style={{ textAlign: "center" }}>{p.stock}</td>
+                <td style={{ textAlign: "center" }}>{soldToday}</td>
+
+              </tr>
+
+            );
+
+          })}
 
         </tbody>
 
       </table>
 
-      <h2 style={{ marginTop: "40px" }}>
-        Inventory
-      </h2>
+    </div>
 
-      <table
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          marginTop: "20px"
-        }}
-      >
-
-        <thead>
-          <tr>
-            <th style={{ borderBottom: "1px solid #ccc", textAlign: "left" }}>
-              Product
-            </th>
-            <th style={{ borderBottom: "1px solid #ccc", textAlign: "left" }}>
-              Stock Left
-            </th>
-            <th style={{ borderBottom: "1px solid #ccc", textAlign: "left" }}>
-              Sold Today
-            </th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          {products.map(product => (
-
-            <tr key={product.id}>
-
-              <td>{product.name}</td>
-
-              <td>{product.stock}</td>
-
-              <td>{soldToday[product.id] || 0}</td>
-
-            </tr>
-
-          ))}
-
-        </tbody>
-
-      </table>
-
-    </main>
   );
+
 }
