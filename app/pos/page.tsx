@@ -288,20 +288,6 @@ export default function POS() {
 
             )}
 
-            <button
-              onClick={() => restock(product)}
-              style={{
-                marginTop: 6,
-                padding: "6px",
-                background: "blue",
-                color: "white",
-                border: "none",
-                borderRadius: 6
-              }}
-            >
-              Restock
-            </button>
-
           </div>
 
         ))}
