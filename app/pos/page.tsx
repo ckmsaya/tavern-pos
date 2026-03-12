@@ -13,15 +13,12 @@ export default function POS() {
   }, []);
 
   async function loadProducts() {
-
     const { data } = await supabase
       .from("products")
-      .select("*");
+      .select("*")
+      .order("name");
 
-    if (data) {
-      setProducts(data);
-    }
-
+    if (data) setProducts(data);
   }
 
   function addToCart(product: any) {
@@ -29,53 +26,38 @@ export default function POS() {
     const existing = cart.find((item) => item.id === product.id);
 
     if (existing) {
-
       const updated = cart.map((item) =>
         item.id === product.id
           ? { ...item, quantity: item.quantity + 1 }
           : item
       );
-
       setCart(updated);
-
     } else {
-
-      setCart([
-        ...cart,
-        {
-          ...product,
-          quantity: 1
-        }
-      ]);
-
+      setCart([...cart, { ...product, quantity: 1 }]);
     }
 
   }
 
-  function increaseQuantity(id: string) {
-
-    const updated = cart.map((item) =>
-      item.id === id
-        ? { ...item, quantity: item.quantity + 1 }
-        : item
-    );
-
-    setCart(updated);
-
-  }
-
-  function decreaseQuantity(id: string) {
-
-    const updated = cart
-      .map((item) =>
+  function increase(id: string) {
+    setCart(
+      cart.map((item) =>
         item.id === id
-          ? { ...item, quantity: item.quantity - 1 }
+          ? { ...item, quantity: item.quantity + 1 }
           : item
       )
-      .filter((item) => item.quantity > 0);
+    );
+  }
 
-    setCart(updated);
-
+  function decrease(id: string) {
+    setCart(
+      cart
+        .map((item) =>
+          item.id === id
+            ? { ...item, quantity: item.quantity - 1 }
+            : item
+        )
+        .filter((item) => item.quantity > 0)
+    );
   }
 
   function clearOrder() {
@@ -93,8 +75,8 @@ export default function POS() {
 
     const staffName = localStorage.getItem("staffName");
 
-    // Create sale
-    const { data: saleData, error: saleError } = await supabase
+    // create sale
+    const { data: sale, error } = await supabase
       .from("sales")
       .insert({
         payment_method: payment,
@@ -104,27 +86,25 @@ export default function POS() {
       .select()
       .single();
 
-    if (saleError) {
-
+    if (error) {
       alert("Error saving sale");
-      console.error(saleError);
+      console.error(error);
       return;
-
     }
 
-    const orderId = saleData.id;
+    const orderId = sale.id;
 
-    // Save items + update stock
     for (const item of cart) {
 
-      await supabase
-        .from("order_items")
-        .insert({
-          order_id: orderId,
-          product_id: item.id,
-          quantity: item.quantity
-        });
+      // insert order items
+      await supabase.from("order_items").insert({
+        order_id: orderId,
+        product_id: item.id,
+        quantity: item.quantity,
+        price: item.price
+      });
 
+      // update stock
       const { data } = await supabase
         .from("products")
         .select("stock")
@@ -132,26 +112,26 @@ export default function POS() {
         .single();
 
       if (data) {
-
         const newStock = data.stock - item.quantity;
 
         await supabase
           .from("products")
           .update({ stock: newStock })
           .eq("id", item.id);
-
       }
 
     }
 
-    alert("Sale recorded!");
+    alert("Sale recorded");
 
     setCart([]);
+
+    loadProducts();
 
   }
 
   return (
-    <div style={{ padding: "20px" }}>
+    <div style={{ padding: 20 }}>
 
       <h1>POS</h1>
 
@@ -160,33 +140,38 @@ export default function POS() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-          gap: "10px"
+          gridTemplateColumns: "repeat(auto-fill,minmax(140px,1fr))",
+          gap: 10
         }}
       >
-
-        {products.map((product) => (
+        {products.map((p) => (
 
           <button
-            key={product.id}
-            onClick={() => addToCart(product)}
+            key={p.id}
+            onClick={() => addToCart(p)}
             style={{
-              padding: "20px",
-              borderRadius: "10px",
-              backgroundColor: "#222",
-              color: "white"
+              padding: 20,
+              background: "#222",
+              color: "white",
+              borderRadius: 10
             }}
           >
-            {product.name}
+            {p.name}
             <br />
-            R{product.price}
+            R{p.price}
+
+            {p.stock <= 10 && (
+              <div style={{ color: "orange", fontSize: 12 }}>
+                ⚠ Low stock ({p.stock})
+              </div>
+            )}
+
           </button>
 
         ))}
-
       </div>
 
-      <h2 style={{ marginTop: "30px" }}>Cart</h2>
+      <h2 style={{ marginTop: 30 }}>Cart</h2>
 
       {cart.map((item) => (
 
@@ -195,7 +180,7 @@ export default function POS() {
           style={{
             display: "flex",
             justifyContent: "space-between",
-            marginBottom: "10px"
+            marginBottom: 10
           }}
         >
 
@@ -205,13 +190,9 @@ export default function POS() {
 
           <div>
 
-            <button onClick={() => decreaseQuantity(item.id)}>
-              −
-            </button>
+            <button onClick={() => decrease(item.id)}>−</button>
 
-            <button onClick={() => increaseQuantity(item.id)}>
-              +
-            </button>
+            <button onClick={() => increase(item.id)}>+</button>
 
           </div>
 
@@ -223,22 +204,14 @@ export default function POS() {
 
       <button
         onClick={() => checkout("cash")}
-        style={{
-          marginTop: "10px",
-          padding: "12px",
-          width: "100%"
-        }}
+        style={{ marginTop: 10, width: "100%", padding: 12 }}
       >
         Pay Cash
       </button>
 
       <button
         onClick={() => checkout("card")}
-        style={{
-          marginTop: "10px",
-          padding: "12px",
-          width: "100%"
-        }}
+        style={{ marginTop: 10, width: "100%", padding: 12 }}
       >
         Pay Card
       </button>
@@ -246,10 +219,10 @@ export default function POS() {
       <button
         onClick={clearOrder}
         style={{
-          marginTop: "10px",
-          padding: "12px",
+          marginTop: 10,
           width: "100%",
-          backgroundColor: "red",
+          padding: 12,
+          background: "red",
           color: "white"
         }}
       >
