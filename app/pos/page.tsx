@@ -1,47 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-
-type Product = {
-  id: string;
-  name: string;
-  price: number;
-  stock: number;
-};
-
-type CartItem = {
-  id: string;
-  name: string;
-  price: number;
-  quantity: number;
-};
+import { supabase } from "../../lib/supabase";
 
 export default function POS() {
 
-  const [products, setProducts] = useState<Product[]>([]);
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [cart, setCart] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchProducts();
+    loadProducts();
   }, []);
 
-  async function fetchProducts() {
+  async function loadProducts() {
 
     const { data } = await supabase
       .from("products")
       .select("*");
 
-    if (data) setProducts(data);
+    if (data) {
+      setProducts(data);
+    }
+
   }
 
-  function addToCart(product: Product) {
+  function addToCart(product: any) {
 
-    const existing = cart.find(item => item.id === product.id);
+    const existing = cart.find((item) => item.id === product.id);
 
     if (existing) {
 
-      const updated = cart.map(item =>
+      const updated = cart.map((item) =>
         item.id === product.id
           ? { ...item, quantity: item.quantity + 1 }
           : item
@@ -54,41 +43,42 @@ export default function POS() {
       setCart([
         ...cart,
         {
-          id: product.id,
-          name: product.name,
-          price: product.price,
+          ...product,
           quantity: 1
         }
       ]);
 
     }
+
   }
 
   function increaseQuantity(id: string) {
 
-    const updated = cart.map(item =>
+    const updated = cart.map((item) =>
       item.id === id
         ? { ...item, quantity: item.quantity + 1 }
         : item
     );
 
     setCart(updated);
+
   }
 
   function decreaseQuantity(id: string) {
 
     const updated = cart
-      .map(item =>
+      .map((item) =>
         item.id === id
           ? { ...item, quantity: item.quantity - 1 }
           : item
       )
-      .filter(item => item.quantity > 0);
+      .filter((item) => item.quantity > 0);
 
     setCart(updated);
+
   }
 
-  function clearCart() {
+  function clearOrder() {
     setCart([]);
   }
 
@@ -103,15 +93,37 @@ export default function POS() {
 
     const staffName = localStorage.getItem("staffName");
 
-    await supabase
+    // Create sale
+    const { data: saleData, error: saleError } = await supabase
       .from("sales")
       .insert({
         payment_method: payment,
         total: total,
         staff_name: staffName
-      });
+      })
+      .select()
+      .single();
 
+    if (saleError) {
+
+      alert("Error saving sale");
+      console.error(saleError);
+      return;
+
+    }
+
+    const orderId = saleData.id;
+
+    // Save items + update stock
     for (const item of cart) {
+
+      await supabase
+        .from("order_items")
+        .insert({
+          order_id: orderId,
+          product_id: item.id,
+          quantity: item.quantity
+        });
 
       const { data } = await supabase
         .from("products")
@@ -133,167 +145,118 @@ export default function POS() {
     }
 
     alert("Sale recorded!");
+
     setCart([]);
-    fetchProducts();
+
   }
 
   return (
-    <main style={{ padding: "40px", fontFamily: "sans-serif" }}>
+    <div style={{ padding: "20px" }}>
 
-      <h1>Tavern POS Terminal</h1>
+      <h1>POS</h1>
+
+      <h2>Products</h2>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "2fr 1fr",
-          gap: "40px",
-          marginTop: "20px"
+          gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+          gap: "10px"
         }}
       >
 
-        {/* PRODUCTS */}
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))",
-            gap: "20px"
-          }}
-        >
-
-          {products.map(product => (
-
-            <div key={product.id}>
-
-              <button
-                onClick={() => addToCart(product)}
-                style={{
-                  padding: "20px",
-                  fontSize: "18px",
-                  borderRadius: "10px",
-                  border: "none",
-                  backgroundColor: "#222",
-                  color: "white",
-                  cursor: "pointer",
-                  width: "100%"
-                }}
-              >
-                {product.name}
-                <br />
-                R{product.price}
-              </button>
-
-              {product.stock <= 10 && (
-                <p style={{ color: "red", fontSize: "12px" }}>
-                  ⚠ Low Stock ({product.stock} left)
-                </p>
-              )}
-
-            </div>
-
-          ))}
-
-        </div>
-
-        {/* CART */}
-
-        <div
-          style={{
-            border: "1px solid #ccc",
-            padding: "20px",
-            borderRadius: "10px"
-          }}
-        >
-
-          <h2>Cart</h2>
-
-          {cart.length === 0 && <p>No items yet</p>}
-
-          {cart.map(item => (
-
-            <div
-              key={item.id}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "10px",
-                alignItems: "center"
-              }}
-            >
-
-              <span>{item.name}</span>
-
-              <div>
-
-                <button onClick={() => decreaseQuantity(item.id)}>
-                  -
-                </button>
-
-                <span style={{ margin: "0 10px" }}>
-                  {item.quantity}
-                </span>
-
-                <button onClick={() => increaseQuantity(item.id)}>
-                  +
-                </button>
-
-              </div>
-
-              <span>
-                R{item.price * item.quantity}
-              </span>
-
-            </div>
-
-          ))}
-
-          <hr />
-
-          <h3>Total: R{total}</h3>
+        {products.map((product) => (
 
           <button
+            key={product.id}
+            onClick={() => addToCart(product)}
             style={{
-              marginTop: "10px",
-              padding: "12px",
-              width: "100%",
-              backgroundColor: "green",
-              color: "white",
-              fontSize: "16px"
+              padding: "20px",
+              borderRadius: "10px",
+              backgroundColor: "#222",
+              color: "white"
             }}
-            onClick={() => checkout("cash")}
           >
-            Pay Cash
+            {product.name}
+            <br />
+            R{product.price}
           </button>
 
-          <button
-            style={{
-              marginTop: "10px",
-              padding: "12px",
-              width: "100%",
-              backgroundColor: "blue",
-              color: "white",
-              fontSize: "16px"
-            }}
-            onClick={() => checkout("card")}
-          >
-            Pay Card
-          </button>
-
-          <button
-            style={{
-              marginTop: "10px",
-              padding: "12px",
-              width: "100%"
-            }}
-            onClick={clearCart}
-          >
-            Clear Order
-          </button>
-
-        </div>
+        ))}
 
       </div>
 
-    </main>
+      <h2 style={{ marginTop: "30px" }}>Cart</h2>
+
+      {cart.map((item) => (
+
+        <div
+          key={item.id}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: "10px"
+          }}
+        >
+
+          <div>
+            {item.name} × {item.quantity}
+          </div>
+
+          <div>
+
+            <button onClick={() => decreaseQuantity(item.id)}>
+              −
+            </button>
+
+            <button onClick={() => increaseQuantity(item.id)}>
+              +
+            </button>
+
+          </div>
+
+        </div>
+
+      ))}
+
+      <h2>Total: R{total}</h2>
+
+      <button
+        onClick={() => checkout("cash")}
+        style={{
+          marginTop: "10px",
+          padding: "12px",
+          width: "100%"
+        }}
+      >
+        Pay Cash
+      </button>
+
+      <button
+        onClick={() => checkout("card")}
+        style={{
+          marginTop: "10px",
+          padding: "12px",
+          width: "100%"
+        }}
+      >
+        Pay Card
+      </button>
+
+      <button
+        onClick={clearOrder}
+        style={{
+          marginTop: "10px",
+          padding: "12px",
+          width: "100%",
+          backgroundColor: "red",
+          color: "white"
+        }}
+      >
+        Clear Order
+      </button>
+
+    </div>
   );
+
 }
