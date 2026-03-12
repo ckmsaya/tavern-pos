@@ -99,31 +99,36 @@ export default function POS() {
 
   async function undoSale() {
 
-    if (!lastSale) return;
+  if (!lastSale) return;
 
-    await supabase
-      .from("sales")
-      .delete()
-      .eq("id", lastSale.saleId);
+  await supabase
+    .from("sales")
+    .delete()
+    .eq("id", lastSale.saleId);
 
-    const { data } = await supabase
-      .from("products")
-      .select("stock")
-      .eq("id", lastSale.productId)
-      .single();
+  const { data } = await supabase
+    .from("products")
+    .select("stock")
+    .eq("id", lastSale.productId)
+    .single();
 
-    const newStock = data.stock + 1;
-
-    await supabase
-      .from("products")
-      .update({ stock: newStock })
-      .eq("id", lastSale.productId);
-
-    setLastSale(null);
-
-    loadProducts();
-
+  if (!data) {
+    console.error("Product not found");
+    return;
   }
+
+  const newStock = data.stock + 1;
+
+  await supabase
+    .from("products")
+    .update({ stock: newStock })
+    .eq("id", lastSale.productId);
+
+  setLastSale(null);
+
+  loadProducts();
+
+}
 
   async function checkout(payment:string) {
 
