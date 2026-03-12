@@ -99,36 +99,33 @@ export default function POS() {
 
   async function undoSale() {
 
-  if (!lastSale) return;
+    if (!lastSale) return;
 
-  await supabase
-    .from("sales")
-    .delete()
-    .eq("id", lastSale.saleId);
+    await supabase
+      .from("sales")
+      .delete()
+      .eq("id", lastSale.saleId);
 
-  const { data } = await supabase
-    .from("products")
-    .select("stock")
-    .eq("id", lastSale.productId)
-    .single();
+    const { data } = await supabase
+      .from("products")
+      .select("stock")
+      .eq("id", lastSale.productId)
+      .single();
 
-  if (!data) {
-    console.error("Product not found");
-    return;
+    if (!data) return;
+
+    const newStock = data.stock + 1;
+
+    await supabase
+      .from("products")
+      .update({ stock: newStock })
+      .eq("id", lastSale.productId);
+
+    setLastSale(null);
+
+    loadProducts();
+
   }
-
-  const newStock = data.stock + 1;
-
-  await supabase
-    .from("products")
-    .update({ stock: newStock })
-    .eq("id", lastSale.productId);
-
-  setLastSale(null);
-
-  loadProducts();
-
-}
 
   async function checkout(payment:string) {
 
@@ -167,19 +164,44 @@ export default function POS() {
 
   }
 
-  function restock(product:any) {
+  async function endShift() {
 
-    const amount = prompt("Add stock amount");
+    const staffName = localStorage.getItem("staffName");
 
-    if (!amount) return;
+    const today = new Date().toISOString().split("T")[0];
 
-    const newStock = product.stock + Number(amount);
+    const { data } = await supabase
+      .from("sales")
+      .select("*")
+      .eq("staff_name", staffName)
+      .gte("created_at", today);
 
-    supabase
-      .from("products")
-      .update({ stock: newStock })
-      .eq("id", product.id)
-      .then(loadProducts);
+    if (!data) return;
+
+    let revenue = 0;
+    let cash = 0;
+    let card = 0;
+
+    data.forEach(sale => {
+
+      revenue += sale.total;
+
+      if (sale.payment_method === "cash") cash += sale.total;
+      if (sale.payment_method === "card") card += sale.total;
+
+    });
+
+    alert(
+`Shift Report
+
+Staff: ${staffName}
+
+Revenue: R${revenue}
+Transactions: ${data.length}
+
+Cash: R${cash}
+Card: R${card}`
+    );
 
   }
 
@@ -202,8 +224,6 @@ export default function POS() {
         Weekend Mode: {weekendMode ? "ON" : "OFF"}
       </button>
 
-      {/* SEARCH */}
-
       <input
         type="text"
         placeholder="Search drink..."
@@ -216,8 +236,6 @@ export default function POS() {
         }}
       />
 
-      {/* CATEGORY */}
-
       <div style={{ marginBottom: 20 }}>
 
         <button onClick={() => setCategory("all")} style={{marginRight:10}}>All</button>
@@ -227,8 +245,6 @@ export default function POS() {
         <button onClick={() => setCategory("wine")}>Wine</button>
 
       </div>
-
-      {/* PRODUCTS */}
 
       <div
         style={{
@@ -351,10 +367,22 @@ export default function POS() {
           style={{
             padding: "12px",
             background: "red",
-            color: "white"
+            color: "white",
+            marginRight:10
           }}
         >
           Undo Last Sale
+        </button>
+
+        <button
+          onClick={endShift}
+          style={{
+            padding: "12px",
+            background: "black",
+            color: "white"
+          }}
+        >
+          End Shift
         </button>
 
       </div>
