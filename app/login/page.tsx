@@ -13,10 +13,10 @@ export default function Login() {
   async function handleLogin() {
 
     const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("pin", pin)
-      .single();
+  .from("users")
+  .select("*")
+  .eq("pin", pin.trim())
+  .single();
 
     if (error || !data) {
       alert("Invalid PIN");
@@ -48,6 +48,7 @@ export default function Login() {
       <h1>Tavern Login</h1>
 
       <input
+        type="password"
         placeholder="Enter PIN"
         value={pin}
         onChange={(e) => setPin(e.target.value)}
