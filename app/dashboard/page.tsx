@@ -10,6 +10,8 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState(0);
   const [totalProfit, setTotalProfit] = useState(0);
   const [staffSales, setStaffSales] = useState<any[]>([]);
+  const [cashSales, setCashSales] = useState(0);
+  const [cardSales, setCardSales] = useState(0);
 
   useEffect(() => {
 
@@ -41,11 +43,22 @@ export default function Dashboard() {
     if (!sales) return;
 
     let totalRevenue = 0;
+    let cash = 0;
+    let card = 0;
 
-    sales.forEach(s => totalRevenue += s.total);
+    sales.forEach(s => {
+
+      totalRevenue += s.total;
+
+      if (s.payment_method === "cash") cash += s.total;
+      if (s.payment_method === "card") card += s.total;
+
+    });
 
     setRevenue(totalRevenue);
     setTransactions(sales.length);
+    setCashSales(cash);
+    setCardSales(card);
 
     let profit = 0;
 
@@ -110,60 +123,23 @@ export default function Dashboard() {
 
   }
 
-  async function downloadRestockReport() {
+  function reconcileCash() {
 
-    const { data: sales } = await supabase
-      .from("sales")
-      .select("*");
+    const actual = prompt("Enter cash counted in drawer");
 
-    const { data: products } = await supabase
-      .from("products")
-      .select("*");
+    if (!actual) return;
 
-    if (!sales || !products) return;
+    const difference =
+      Number(actual) - cashSales;
 
-    let revenue = 0;
-    let profit = 0;
+    alert(`
+Cash Reconciliation
 
-    sales.forEach(s => revenue += s.total);
+System Cash Sales: R${cashSales}
+Actual Cash: R${actual}
 
-    let report = `
-TAVERN SALES REPORT
-
-Revenue: R${revenue}
-Transactions: ${sales.length}
-Profit: R${totalProfit}
-
-Products
-`;
-
-    products.forEach(p => {
-
-      const sold = (p.opening_stock ?? 0) - p.stock;
-
-      const profitPerUnit =
-        (p.price ?? 0) - (p.cost_price ?? 0);
-
-      const productProfit = sold * profitPerUnit;
-
-      report += `\n${p.name} | Sold: ${sold} | Profit: R${productProfit}`;
-
-      profit += productProfit;
-
-    });
-
-    report += `\n\nTotal Profit: R${profit}`;
-
-    const blob = new Blob([report], { type: "text/plain" });
-
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-
-    a.href = url;
-    a.download = "tavern_sales_report.txt";
-
-    a.click();
+Difference: R${difference}
+`);
 
   }
 
@@ -198,18 +174,21 @@ Products
         <h3>Total Transactions: {transactions}</h3>
         <h3 style={{color:"green"}}>Total Profit: R{totalProfit}</h3>
 
+        <h4>Cash Sales: R{cashSales}</h4>
+        <h4>Card Sales: R{cardSales}</h4>
+
         <button
-          onClick={downloadRestockReport}
+          onClick={reconcileCash}
           style={{
             padding:"10px 14px",
-            background:"black",
+            background:"darkred",
             color:"white",
             borderRadius:6,
             cursor:"pointer",
             marginTop:10
           }}
         >
-          ⬇ Download Sales Report
+          Cash Drawer Check
         </button>
 
       </div>
