@@ -9,6 +9,7 @@ export default function Dashboard() {
   const [revenue, setRevenue] = useState(0);
   const [transactions, setTransactions] = useState(0);
   const [totalProfit, setTotalProfit] = useState(0);
+  const [staffSales, setStaffSales] = useState<any[]>([]);
 
   useEffect(() => {
 
@@ -16,7 +17,7 @@ export default function Dashboard() {
 
     const interval = setInterval(() => {
       loadDashboard();
-    }, 8000);
+    }, 5000);
 
     return () => clearInterval(interval);
 
@@ -51,13 +52,36 @@ export default function Dashboard() {
     productData.forEach(p => {
 
       const sold = (p.opening_stock ?? 0) - p.stock;
-      const profitPerUnit = (p.price ?? 0) - (p.cost_price ?? 0);
+
+      const profitPerUnit =
+        (p.price ?? 0) - (p.cost_price ?? 0);
 
       profit += sold * profitPerUnit;
 
     });
 
     setTotalProfit(profit);
+
+    const staffMap:any = {};
+
+    sales.forEach(s => {
+
+      if (!staffMap[s.staff_name]) {
+
+        staffMap[s.staff_name] = {
+          name: s.staff_name,
+          revenue: 0,
+          transactions: 0
+        };
+
+      }
+
+      staffMap[s.staff_name].revenue += s.total;
+      staffMap[s.staff_name].transactions += 1;
+
+    });
+
+    setStaffSales(Object.values(staffMap));
 
   }
 
@@ -99,6 +123,7 @@ export default function Dashboard() {
     if (!sales || !products) return;
 
     let revenue = 0;
+    let profit = 0;
 
     sales.forEach(s => revenue += s.total);
 
@@ -107,17 +132,27 @@ TAVERN SALES REPORT
 
 Revenue: R${revenue}
 Transactions: ${sales.length}
+Profit: R${totalProfit}
 
-Products Sold
+Products
 `;
 
     products.forEach(p => {
 
       const sold = (p.opening_stock ?? 0) - p.stock;
 
-      report += `\n${p.name} — ${sold}`;
+      const profitPerUnit =
+        (p.price ?? 0) - (p.cost_price ?? 0);
+
+      const productProfit = sold * profitPerUnit;
+
+      report += `\n${p.name} | Sold: ${sold} | Profit: R${productProfit}`;
+
+      profit += productProfit;
 
     });
+
+    report += `\n\nTotal Profit: R${profit}`;
 
     const blob = new Blob([report], { type: "text/plain" });
 
@@ -134,12 +169,21 @@ Products Sold
 
   const lowStock = products.filter(p => p.stock <= 10);
 
-  const topSellers = [...products]
-    .map(p => ({
-      name: p.name,
-      sold: (p.opening_stock ?? 0) - p.stock
-    }))
-    .sort((a,b)=>b.sold-a.sold)
+  const topProfit = [...products]
+    .map(p => {
+
+      const sold = (p.opening_stock ?? 0) - p.stock;
+
+      const profit =
+        sold * ((p.price ?? 0) - (p.cost_price ?? 0));
+
+      return {
+        name: p.name,
+        profit: profit
+      };
+
+    })
+    .sort((a,b)=>b.profit-a.profit)
     .slice(0,5);
 
   return (
@@ -165,7 +209,7 @@ Products Sold
             marginTop:10
           }}
         >
-        ⬇ Download Sales Report
+          ⬇ Download Sales Report
         </button>
 
       </div>
@@ -188,11 +232,11 @@ Products Sold
 
         <div>
 
-          <h3 style={{ color:"#FFD700" }}>🔥 Top Sellers</h3>
+          <h3 style={{ color:"orange" }}>💰 Most Profitable Drinks</h3>
 
-          {topSellers.map((item,i)=>(
+          {topProfit.map((item,i)=>(
             <div key={i}>
-              {item.name} — {item.sold}
+              {item.name} — R{item.profit}
             </div>
           ))}
 
@@ -200,7 +244,15 @@ Products Sold
 
       </div>
 
-      <h2>Inventory</h2>
+      <h2>Staff Productivity</h2>
+
+      {staffSales.map((s:any)=>(
+        <div key={s.name}>
+          {s.name} — Revenue: R{s.revenue} | Sales: {s.transactions}
+        </div>
+      ))}
+
+      <h2 style={{ marginTop:30 }}>Inventory</h2>
 
       <table
         style={{
@@ -230,15 +282,18 @@ Products Sold
 
           {products.map(p=>{
 
-            const sold = (p.opening_stock ?? 0) - p.stock;
+            const sold =
+              (p.opening_stock ?? 0) - p.stock;
 
-            const profitPerUnit = (p.price ?? 0) - (p.cost_price ?? 0);
+            const profitPerUnit =
+              (p.price ?? 0) - (p.cost_price ?? 0);
 
             const profit = sold * profitPerUnit;
 
             return(
 
-              <tr key={p.id} style={{ borderBottom:"1px solid #333" }}>
+              <tr key={p.id}
+                style={{ borderBottom:"1px solid #333" }}>
 
                 <td style={{ padding:8 }}>{p.name}</td>
                 <td style={{ textAlign:"center" }}>{p.category}</td>
@@ -247,7 +302,10 @@ Products Sold
                 <td style={{ textAlign:"center" }}>{p.opening_stock}</td>
                 <td style={{ textAlign:"center" }}>{p.stock}</td>
                 <td style={{ textAlign:"center" }}>{sold}</td>
-                <td style={{ textAlign:"center", color:"green" }}>R{profit}</td>
+
+                <td style={{ textAlign:"center", color:"green" }}>
+                  R{profit}
+                </td>
 
                 <td style={{ textAlign:"center" }}>
 
