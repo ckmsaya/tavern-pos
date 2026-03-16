@@ -8,6 +8,7 @@ export default function Dashboard() {
   const [products, setProducts] = useState<any[]>([]);
   const [revenue, setRevenue] = useState(0);
   const [transactions, setTransactions] = useState(0);
+  const [totalProfit, setTotalProfit] = useState(0);
 
   useEffect(() => {
 
@@ -28,7 +29,9 @@ export default function Dashboard() {
       .select("*")
       .order("name");
 
-    if (productData) setProducts(productData);
+    if (!productData) return;
+
+    setProducts(productData);
 
     const { data: sales } = await supabase
       .from("sales")
@@ -42,6 +45,19 @@ export default function Dashboard() {
 
     setRevenue(totalRevenue);
     setTransactions(sales.length);
+
+    let profit = 0;
+
+    productData.forEach(p => {
+
+      const sold = (p.opening_stock ?? 0) - p.stock;
+      const profitPerUnit = (p.price ?? 0) - (p.cost_price ?? 0);
+
+      profit += sold * profitPerUnit;
+
+    });
+
+    setTotalProfit(profit);
 
   }
 
@@ -136,6 +152,7 @@ Products Sold
 
         <h3>Total Revenue: R{revenue}</h3>
         <h3>Total Transactions: {transactions}</h3>
+        <h3 style={{color:"green"}}>Total Profit: R{totalProfit}</h3>
 
         <button
           onClick={downloadRestockReport}
@@ -198,10 +215,12 @@ Products Sold
           <tr style={{ background:"#222", color:"white" }}>
             <th style={{ padding:10 }}>Product</th>
             <th>Category</th>
+            <th>Cost</th>
             <th>Price</th>
             <th>Opening</th>
             <th>Stock</th>
             <th>Sold</th>
+            <th>Profit</th>
             <th>Restock</th>
           </tr>
 
@@ -213,16 +232,22 @@ Products Sold
 
             const sold = (p.opening_stock ?? 0) - p.stock;
 
+            const profitPerUnit = (p.price ?? 0) - (p.cost_price ?? 0);
+
+            const profit = sold * profitPerUnit;
+
             return(
 
               <tr key={p.id} style={{ borderBottom:"1px solid #333" }}>
 
                 <td style={{ padding:8 }}>{p.name}</td>
                 <td style={{ textAlign:"center" }}>{p.category}</td>
+                <td style={{ textAlign:"center" }}>R{p.cost_price}</td>
                 <td style={{ textAlign:"center" }}>R{p.price}</td>
                 <td style={{ textAlign:"center" }}>{p.opening_stock}</td>
                 <td style={{ textAlign:"center" }}>{p.stock}</td>
                 <td style={{ textAlign:"center" }}>{sold}</td>
+                <td style={{ textAlign:"center", color:"green" }}>R{profit}</td>
 
                 <td style={{ textAlign:"center" }}>
 
