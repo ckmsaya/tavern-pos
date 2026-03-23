@@ -1,321 +1,336 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
+import {useEffect,useState} from "react";
+import {supabase} from "../../lib/supabase";
+import styles from "./dashboard.module.css";
 
-export default function Dashboard() {
+import {
+Chart as ChartJS,
+CategoryScale,
+LinearScale,
+PointElement,
+LineElement,
+Tooltip,
+Legend
+} from "chart.js";
 
-  const [products, setProducts] = useState<any[]>([]);
-  const [revenue, setRevenue] = useState(0);
-  const [transactions, setTransactions] = useState(0);
-  const [totalProfit, setTotalProfit] = useState(0);
-  const [staffSales, setStaffSales] = useState<any[]>([]);
-  const [cashSales, setCashSales] = useState(0);
-  const [cardSales, setCardSales] = useState(0);
+import {Line} from "react-chartjs-2";
 
-  useEffect(() => {
+ChartJS.register(
+CategoryScale,
+LinearScale,
+PointElement,
+LineElement,
+Tooltip,
+Legend
+);
 
-    loadDashboard();
+export default function Dashboard(){
 
-    const interval = setInterval(() => {
-      loadDashboard();
-    }, 5000);
+const [products,setProducts]=useState<any[]>([]);
+const [sales,setSales]=useState<any[]>([]);
+const [revenue,setRevenue]=useState(0);
+const [cash,setCash]=useState(0);
+const [card,setCard]=useState(0);
+const [profit,setProfit]=useState(0);
+const [alerted,setAlerted]=useState<any>({});
 
-    return () => clearInterval(interval);
+useEffect(()=>{
+  load();
+  const interval=setInterval(load,5000);
+  return()=>clearInterval(interval);
+},[]);
 
-  }, []);
+async function load(){
 
-  async function loadDashboard() {
+try{
 
-    const { data: productData } = await supabase
-      .from("products")
-      .select("*")
-      .order("name");
+const {data:prod}=await supabase.from("products").select("*");
+const {data:salesData}=await supabase
+.from("sales")
+.select("*")
+.order("created_at",{ascending:false})
+.limit(20);
 
-    if (!productData) return;
+if(!prod||!salesData)return;
 
-    setProducts(productData);
+setProducts(prod);
+setSales(salesData);
 
-    const { data: sales } = await supabase
-      .from("sales")
-      .select("*");
+// 💰 revenue
+let r=0, c=0, ca=0;
 
-    if (!sales) return;
+salesData.forEach((s:any)=>{
+  r+=s.total;
+  if(s.payment_method==="cash")c+=s.total;
+  if(s.payment_method==="card")ca+=s.total;
+});
 
-    let totalRevenue = 0;
-    let cash = 0;
-    let card = 0;
+setRevenue(r);
+setCash(c);
+setCard(ca);
 
-    sales.forEach(s => {
+// 💰 profit
+let p=0;
 
-      totalRevenue += s.total;
+prod.forEach((pr:any)=>{
+  const sold=(pr.opening_stock??0)-pr.stock;
+  const unit=(pr.price??0)-(pr.cost_price??0);
+  p+=sold*unit;
+});
 
-      if (s.payment_method === "cash") cash += s.total;
-      if (s.payment_method === "card") card += s.total;
+setProfit(p);
 
-    });
+// 🚨 LOW STOCK ALERT (SAFE VERSION)
+const lowStock=prod.filter((p:any)=>p.stock === 5);
 
-    setRevenue(totalRevenue);
-    setTransactions(sales.length);
-    setCashSales(cash);
-    setCardSales(card);
+lowStock.forEach(async (p:any)=>{
 
-    let profit = 0;
+  if(alerted[p.id]) return;
 
-    productData.forEach(p => {
+  try{
+    await fetch("/api/whatsapp",{
+      method:"POST",
+      headers:{
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({
+        message:`⚠ Tavern Alert
 
-      const sold = (p.opening_stock ?? 0) - p.stock;
-
-      const profitPerUnit =
-        (p.price ?? 0) - (p.cost_price ?? 0);
-
-      profit += sold * profitPerUnit;
-
-    });
-
-    setTotalProfit(profit);
-
-    const staffMap:any = {};
-
-    sales.forEach(s => {
-
-      if (!staffMap[s.staff_name]) {
-
-        staffMap[s.staff_name] = {
-          name: s.staff_name,
-          revenue: 0,
-          transactions: 0
-        };
-
-      }
-
-      staffMap[s.staff_name].revenue += s.total;
-      staffMap[s.staff_name].transactions += 1;
-
-    });
-
-    setStaffSales(Object.values(staffMap));
-
-  }
-
-  async function restockProduct(product:any) {
-
-    const amount = prompt("Enter quantity to add");
-
-    if (!amount) return;
-
-    const quantity = Number(amount);
-
-    const newStock = product.stock + quantity;
-
-    await supabase
-      .from("products")
-      .update({
-        stock: newStock,
-        opening_stock: newStock,
-        last_restock: new Date()
+${p.name} is running low
+Stock left: ${p.stock}`
       })
-      .eq("id", product.id);
+    });
 
-    alert("Stock updated");
+    setAlerted((prev:any)=>({
+      ...prev,
+      [p.id]:true
+    }));
 
-    loadDashboard();
-
+  }catch(err){
+    console.log("Alert skipped (dev or limit):",err);
   }
 
-  function reconcileCash() {
+});
 
-    const actual = prompt("Enter cash counted in drawer");
+}catch(err){
+  console.log("LOAD ERROR:",err);
+}
 
-    if (!actual) return;
+}
 
-    const difference =
-      Number(actual) - cashSales;
+// 🧾 CASH DRAWER
+function cashDrawerCheck(){
 
-    alert(`
-Cash Reconciliation
+const actual=prompt("Enter cash counted in drawer");
+if(!actual)return;
 
-System Cash Sales: R${cashSales}
+const diff=Number(actual)-cash;
+
+alert(`
+Cash Drawer Report
+
+System Cash: R${cash}
 Actual Cash: R${actual}
 
-Difference: R${difference}
+Difference: R${diff}
 `);
 
-  }
+}
 
-  const lowStock = products.filter(p => p.stock <= 10);
+// 📊 CLOSE DAY
+function closeDay(){
 
-  const topProfit = [...products]
-    .map(p => {
+let report=`TAVERN DAILY REPORT\n\n`;
 
-      const sold = (p.opening_stock ?? 0) - p.stock;
+report+=`Revenue: R${revenue}\n`;
+report+=`Cash Sales: R${cash}\n`;
+report+=`Card Sales: R${card}\n`;
+report+=`Total Profit: R${profit}\n\n`;
 
-      const profit =
-        sold * ((p.price ?? 0) - (p.cost_price ?? 0));
+report+=`LOW STOCK\n`;
 
-      return {
-        name: p.name,
-        profit: profit
-      };
+const lowStock=products.filter((p:any)=>p.stock<=5);
 
-    })
-    .sort((a,b)=>b.profit-a.profit)
-    .slice(0,5);
+lowStock.forEach((p:any)=>{
+report+=`${p.name} — ${p.stock} left\n`;
+});
 
-  return (
+report+=`\nSALES PER PRODUCT\n`;
 
-    <div style={{ padding: 30, fontFamily:"Arial" }}>
+products.forEach((p:any)=>{
+const sold=(p.opening_stock??0)-p.stock;
+const pr=sold*((p.price??0)-(p.cost_price??0));
+report+=`${p.name} — Sold ${sold} — Profit R${pr}\n`;
+});
 
-      <h1>🍻 Tavern Dashboard</h1>
+const blob=new Blob([report],{type:"text/plain"});
+const url=URL.createObjectURL(blob);
 
-      <div style={{ marginBottom:30 }}>
+const a=document.createElement("a");
+a.href=url;
+a.download="tavern_daily_report.txt";
+a.click();
 
-        <h3>Total Revenue: R{revenue}</h3>
-        <h3>Total Transactions: {transactions}</h3>
-        <h3 style={{color:"green"}}>Total Profit: R{totalProfit}</h3>
+}
 
-        <h4>Cash Sales: R{cashSales}</h4>
-        <h4>Card Sales: R{cardSales}</h4>
+// 📦 RESTOCK
+async function restockProduct(product:any){
 
-        <button
-          onClick={reconcileCash}
-          style={{
-            padding:"10px 14px",
-            background:"darkred",
-            color:"white",
-            borderRadius:6,
-            cursor:"pointer",
-            marginTop:10
-          }}
-        >
-          Cash Drawer Check
-        </button>
+const amount=prompt(`Enter stock amount for ${product.name}`);
+if(!amount)return;
 
-      </div>
+const qty=Number(amount);
 
-      <div style={{ display:"flex", gap:60, marginBottom:30 }}>
+await supabase
+.from("products")
+.update({
+  stock:product.stock+qty,
+  opening_stock:product.stock+qty
+})
+.eq("id",product.id);
 
-        <div>
+load();
 
-          <h3 style={{ color:"red" }}>⚠ Low Stock</h3>
+}
 
-          {lowStock.map(item => (
+// 📈 CHART
+const chartData={
+labels:sales.map((s:any)=>new Date(s.created_at).toLocaleTimeString()),
+datasets:[{
+label:"Sales",
+data:sales.map((s:any)=>s.total),
+borderColor:"#d4af37",
+backgroundColor:"#d4af37",
+tension:0.4
+}]
+};
 
-            <div key={item.id}>
-              {item.name} — {item.stock} left
-            </div>
+const lowStockUI=products.filter((p:any)=>p.stock<=5);
 
-          ))}
+return(
 
-        </div>
+<div className={styles.container}>
 
-        <div>
+<h1 className={styles.title}>Tavern Dashboard</h1>
 
-          <h3 style={{ color:"orange" }}>💰 Most Profitable Drinks</h3>
+<div className={styles.cards}>
 
-          {topProfit.map((item,i)=>(
-            <div key={i}>
-              {item.name} — R{item.profit}
-            </div>
-          ))}
+<div className={styles.card}>
+<p className={styles.cardLabel}>Revenue</p>
+<h2 className={styles.cardValue}>R{revenue}</h2>
+</div>
 
-        </div>
+<div className={styles.card}>
+<p className={styles.cardLabel}>Cash</p>
+<h2 className={styles.cardValue}>R{cash}</h2>
+</div>
 
-      </div>
+<div className={styles.card}>
+<p className={styles.cardLabel}>Card</p>
+<h2 className={styles.cardValue}>R{card}</h2>
+</div>
 
-      <h2>Staff Productivity</h2>
+<div className={styles.card}>
+<p className={styles.cardLabel}>Profit</p>
+<h2 className={styles.cardValue}>R{profit}</h2>
+</div>
 
-      {staffSales.map((s:any)=>(
-        <div key={s.name}>
-          {s.name} — Revenue: R{s.revenue} | Sales: {s.transactions}
-        </div>
-      ))}
+</div>
 
-      <h2 style={{ marginTop:30 }}>Inventory</h2>
+<div style={{marginBottom:20}}>
+<button className={styles.btn} onClick={cashDrawerCheck}>Cash Drawer</button>
+<button className={styles.btn} onClick={closeDay}>Close Day</button>
+</div>
 
-      <table
-        style={{
-          width:"100%",
-          borderCollapse:"collapse",
-          marginTop:10
-        }}
-      >
+<div className={styles.row}>
 
-        <thead>
+<div className={styles.chartPanel}>
+<h3 className={styles.panelTitle}>Sales Activity</h3>
 
-          <tr style={{ background:"#222", color:"white" }}>
-            <th style={{ padding:10 }}>Product</th>
-            <th>Category</th>
-            <th>Cost</th>
-            <th>Price</th>
-            <th>Opening</th>
-            <th>Stock</th>
-            <th>Sold</th>
-            <th>Profit</th>
-            <th>Restock</th>
-          </tr>
+<div style={{height:180}}>
+<Line data={chartData}/>
+</div>
 
-        </thead>
+<div className={styles.activity}>
+{sales.map((s:any)=>(
+<div key={s.id} className={styles.activityItem}>
+<span className={styles.staff}>{s.staff_name}</span>
+{" sold drink — "}
+<span className={styles.amount}>R{s.total}</span>
+</div>
+))}
+</div>
 
-        <tbody>
+</div>
 
-          {products.map(p=>{
+<div className={styles.sidePanel}>
+<h3 className={styles.panelTitle}>⚠ Low Stock</h3>
 
-            const sold =
-              (p.opening_stock ?? 0) - p.stock;
+{lowStockUI.map((p:any)=>(
+<div key={p.id} className={styles.lowStock}>
+{p.name} — {p.stock} left
+</div>
+))}
+</div>
 
-            const profitPerUnit =
-              (p.price ?? 0) - (p.cost_price ?? 0);
+</div>
 
-            const profit = sold * profitPerUnit;
+<div className={styles.inventory}>
 
-            return(
+<h3 className={styles.panelTitle}>Inventory</h3>
 
-              <tr key={p.id}
-                style={{ borderBottom:"1px solid #333" }}>
+<table className={styles.table}>
 
-                <td style={{ padding:8 }}>{p.name}</td>
-                <td style={{ textAlign:"center" }}>{p.category}</td>
-                <td style={{ textAlign:"center" }}>R{p.cost_price}</td>
-                <td style={{ textAlign:"center" }}>R{p.price}</td>
-                <td style={{ textAlign:"center" }}>{p.opening_stock}</td>
-                <td style={{ textAlign:"center" }}>{p.stock}</td>
-                <td style={{ textAlign:"center" }}>{sold}</td>
+<thead>
+<tr>
+<th>Product</th>
+<th>Category</th>
+<th>Cost</th>
+<th>Price</th>
+<th>Opening</th>
+<th>Stock</th>
+<th>Sold</th>
+<th>Profit</th>
+<th>Restock</th>
+</tr>
+</thead>
 
-                <td style={{ textAlign:"center", color:"green" }}>
-                  R{profit}
-                </td>
+<tbody>
 
-                <td style={{ textAlign:"center" }}>
+{products.map((p:any)=>{
 
-                  <button
-                    onClick={()=>restockProduct(p)}
-                    style={{
-                      padding:"6px 10px",
-                      background:"green",
-                      color:"white",
-                      border:"none",
-                      borderRadius:6,
-                      cursor:"pointer"
-                    }}
-                  >
-                    Restock
-                  </button>
+const sold=(p.opening_stock??0)-p.stock;
+const pr=sold*((p.price??0)-(p.cost_price??0));
 
-                </td>
+return(
+<tr key={p.id}>
+<td>{p.name}</td>
+<td>{p.category}</td>
+<td>R{p.cost_price}</td>
+<td>R{p.price}</td>
+<td>{p.opening_stock}</td>
+<td>{p.stock}</td>
+<td>{sold}</td>
+<td>R{pr}</td>
+<td>
+<button className={styles.btn} onClick={()=>restockProduct(p)}>
+Restock
+</button>
+</td>
+</tr>
+);
 
-              </tr>
+})}
 
-            )
+</tbody>
 
-          })}
+</table>
 
-        </tbody>
+</div>
 
-      </table>
+</div>
 
-    </div>
-
-  );
+);
 
 }
