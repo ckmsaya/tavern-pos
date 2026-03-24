@@ -51,9 +51,11 @@ async function resetDay(){
   await supabase.from("sales").delete().neq("id",0);
 
   // 📦 Reset opening stock = current stock
-  const {data:products} = await supabase.from("products").select("*");
+  const { data: products } = await supabase.from("products").select("*");
 
-  for(const p of products){
+if (!products) return; // 👈 STOP if null
+
+for (const p of products) {
 
     await supabase
       .from("products")
