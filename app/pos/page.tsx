@@ -2,104 +2,115 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
+import styles from "./pos.module.css";
 
 export default function POS() {
 
+  // 🔐 STAFF
+  const [staffName, setStaffName] = useState<string | null>(null);
+  const [pin, setPin] = useState("");
+
+  // 📦 DATA
   const [products, setProducts] = useState<any[]>([]);
-  const [cart, setCart] = useState<any[]>([]);
-  const [weekendMode, setWeekendMode] = useState(false);
-  const [category, setCategory] = useState("all");
+
+  // 🔍 FILTERS
   const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+
+  // 🔢 QUANTITY
+  const [quantity, setQuantity] = useState(1);
+
+  // 💳 PAYMENT
+  const [payment, setPayment] = useState<"cash" | "card">("cash");
+
+  // ↩️ UNDO
   const [lastSale, setLastSale] = useState<any>(null);
+
+  // ✅ SELECTED PRODUCT
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   useEffect(() => {
     loadProducts();
+
+    const saved = localStorage.getItem("staffName");
+    if (saved) setStaffName(saved);
   }, []);
 
   async function loadProducts() {
-
     const { data } = await supabase
       .from("products")
       .select("*")
-      .order("name");
+      .order("name", { ascending: true });
 
     if (data) setProducts(data);
-
   }
 
-  const filteredProducts = products.filter(p => {
-
-    const categoryMatch =
-      category === "all" || p.category === category;
-
-    const searchMatch =
-      p.name.toLowerCase().includes(search.toLowerCase());
-
-    return categoryMatch && searchMatch;
-
-  });
-
-  function addToCart(product:any) {
-
-    const existing = cart.find(p => p.id === product.id);
-
-    if (existing) {
-
-      setCart(cart.map(p =>
-        p.id === product.id
-          ? { ...p, quantity: p.quantity + 1 }
-          : p
-      ));
-
+  // 🔐 LOGIN
+  function login() {
+    if (pin === "2222") {
+      setStaffName("Omphile");
+      localStorage.setItem("staffName", "Omphile");
+    } else if (pin === "3333") {
+      setStaffName("Staff 1");
+      localStorage.setItem("staffName", "Staff 1");
     } else {
+      alert("Wrong PIN");
+      return;
+    }
+    setPin("");
+  }
 
-      setCart([...cart, { ...product, quantity: 1 }]);
+  // 💸 SELL (ONLY AFTER SELECT + PAYMENT)
+  async function quickSell(product: any) {
 
+    if (!product) {
+      alert("Select a product first");
+      return;
     }
 
-  }
-
-  function removeFromCart(id:any) {
-
-    setCart(cart.filter(item => item.id !== id));
-
-  }
-
-  async function quickSell(product:any) {
-
-    const staffName = localStorage.getItem("staffName");
+    if (product.stock < quantity) {
+      alert("Not enough stock");
+      return;
+    }
 
     const { data, error } = await supabase
       .from("sales")
       .insert({
-        payment_method: "cash",
-        total: product.price,
+        payment_method: payment,
+        total: product.price * quantity,
         staff_name: staffName
       })
       .select()
       .single();
 
-    if (error) return;
-
-    const newStock = product.stock - 1;
+    if (error) {
+      alert("Sale failed");
+      return;
+    }
 
     await supabase
       .from("products")
-      .update({ stock: newStock })
+      .update({ stock: product.stock - quantity })
       .eq("id", product.id);
 
     setLastSale({
       saleId: data.id,
-      productId: product.id
+      productId: product.id,
+      quantity: quantity
     });
 
+    setQuantity(1);
+    setSelectedProduct(null);
     loadProducts();
-
   }
 
+  // ↩️ UNDO SALE
   async function undoSale() {
 
-    if (!lastSale) return;
+    if (!lastSale) {
+      alert("Nothing to undo");
+      return;
+    }
 
     await supabase
       .from("sales")
@@ -114,281 +125,146 @@ export default function POS() {
 
     if (!data) return;
 
-    const newStock = data.stock + 1;
-
     await supabase
       .from("products")
-      .update({ stock: newStock })
+      .update({
+        stock: data.stock + lastSale.quantity
+      })
       .eq("id", lastSale.productId);
 
     setLastSale(null);
-
     loadProducts();
-
   }
 
-  async function checkout(payment:string) {
+  // 🔍 FILTER
+  const filteredProducts = products.filter((p) => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+    const matchesCategory = category === "all" || p.category === category;
+    return matchesSearch && matchesCategory;
+  });
 
-    if (cart.length === 0) return;
+  // 🔐 LOGIN SCREEN
+  if (!staffName) {
+    return (
+      <div className={styles.container}>
+        <h1 className={styles.title}>Staff Login</h1>
 
-    const staffName = localStorage.getItem("staffName");
+        <input
+          className={styles.search}
+          placeholder="Enter PIN"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+        />
 
-    let total = 0;
-
-    cart.forEach(item => {
-      total += item.price * item.quantity;
-    });
-
-    await supabase
-      .from("sales")
-      .insert({
-        payment_method: payment,
-        total: total,
-        staff_name: staffName
-      });
-
-    for (const item of cart) {
-
-      const newStock = item.stock - item.quantity;
-
-      await supabase
-        .from("products")
-        .update({ stock: newStock })
-        .eq("id", item.id);
-
-    }
-
-    setCart([]);
-
-    loadProducts();
-
-  }
-
-  async function endShift() {
-
-    const staffName = localStorage.getItem("staffName");
-
-    const today = new Date().toISOString().split("T")[0];
-
-    const { data } = await supabase
-      .from("sales")
-      .select("*")
-      .eq("staff_name", staffName)
-      .gte("created_at", today);
-
-    if (!data) return;
-
-    let revenue = 0;
-    let cash = 0;
-    let card = 0;
-
-    data.forEach(sale => {
-
-      revenue += sale.total;
-
-      if (sale.payment_method === "cash") cash += sale.total;
-      if (sale.payment_method === "card") card += sale.total;
-
-    });
-
-    alert(
-`Shift Report
-
-Staff: ${staffName}
-
-Revenue: R${revenue}
-Transactions: ${data.length}
-
-Cash: R${cash}
-Card: R${card}`
+        <button className={styles.start} onClick={login}>
+          Login
+        </button>
+      </div>
     );
-
   }
 
+  // 🧾 MAIN POS
   return (
+    <div className={styles.container}>
 
-    <div style={{ padding: 30 }}>
+      <h1 className={styles.title}>POS System</h1>
+      <p className={styles.staff}>Logged in: {staffName}</p>
 
-      <h1>🍻 Tavern POS</h1>
+      {/* 🔍 TOP BAR */}
+      <div className={styles.topBar}>
 
-      <button
-        onClick={() => setWeekendMode(!weekendMode)}
-        style={{
-          padding: "10px 20px",
-          background: weekendMode ? "orange" : "black",
-          color: "white",
-          borderRadius: 6,
-          marginBottom: 20
-        }}
-      >
-        Weekend Mode: {weekendMode ? "ON" : "OFF"}
-      </button>
+        <input
+          className={styles.search}
+          placeholder="Search drink..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
 
-      <input
-        type="text"
-        placeholder="Search drink..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{
-          padding: 10,
-          marginBottom: 20,
-          width: 250
-        }}
-      />
+        <select
+          className={styles.select}
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          <option value="all">All</option>
+          <option value="beer">Beer</option>
+          <option value="cider">Cider</option>
+          <option value="spirit">Spirit</option>
+          <option value="wine">Wine</option>
+        </select>
 
-      <div style={{ marginBottom: 20 }}>
-
-        <button onClick={() => setCategory("all")} style={{marginRight:10}}>All</button>
-        <button onClick={() => setCategory("beer")} style={{marginRight:10}}>Beer</button>
-        <button onClick={() => setCategory("cider")} style={{marginRight:10}}>Cider</button>
-        <button onClick={() => setCategory("spirit")} style={{marginRight:10}}>Spirit</button>
-        <button onClick={() => setCategory("wine")}>Wine</button>
+        <div className={styles.qtyBox}>
+          <button onClick={() => setQuantity(Math.max(1, quantity - 1))}>-</button>
+          <span>{quantity}</span>
+          <button onClick={() => setQuantity(quantity + 1)}>+</button>
+        </div>
 
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4,1fr)",
-          gap: 10
-        }}
-      >
-
-        {filteredProducts.map(product => (
-
+      {/* 🍺 PRODUCTS */}
+      <div className={styles.grid}>
+        {filteredProducts.map((product) => (
           <div
             key={product.id}
-            style={{
-              padding: 20,
-              background: "#222",
-              borderRadius: 10,
-              textAlign: "center"
-            }}
+            className={`${styles.card} ${
+              selectedProduct?.id === product.id ? styles.selectedCard : ""
+            }`}
+            onClick={() => setSelectedProduct(product)}
           >
+            <p className={styles.name}>{product.name}</p>
+            <p className={styles.price}>R{product.price}</p>
 
-            <div>{product.name}</div>
-            <div>R{product.price}</div>
-            <div>Stock: {product.stock}</div>
-
-            {weekendMode ? (
-
-              <button
-                onClick={() => quickSell(product)}
-                style={{
-                  marginTop: 10,
-                  padding: "10px",
-                  background: "green",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6
-                }}
-              >
-                Quick Sell
-              </button>
-
-            ) : (
-
-              <button
-                onClick={() => addToCart(product)}
-                style={{
-                  marginTop: 10,
-                  padding: "10px",
-                  background: "#444",
-                  color: "white",
-                  border: "none",
-                  borderRadius: 6
-                }}
-              >
-                Add
-              </button>
-
-            )}
-
+            <p className={`${styles.stock} ${product.stock <= 5 ? styles.low : ""}`}>
+              {product.stock} left
+            </p>
           </div>
-
         ))}
-
       </div>
 
-      <h2 style={{ marginTop: 40 }}>Cart</h2>
+      {/* 🔻 BOTTOM BAR */}
+      <div className={styles.bottomBar}>
 
-      {cart.map(item => (
+        <div className={styles.selected}>
+          {selectedProduct ? (
+            <>
+              <span>{selectedProduct.name}</span>
+              <span>Qty: {quantity}</span>
+              <span>Total: R{selectedProduct.price * quantity}</span>
+            </>
+          ) : (
+            <span>Select a drink</span>
+          )}
+        </div>
 
-        <div key={item.id} style={{marginBottom:5}}>
-
-          {item.name} x{item.quantity}
+        <div className={styles.actions}>
 
           <button
-            onClick={() => removeFromCart(item.id)}
-            style={{
-              marginLeft:10,
-              background:"red",
-              color:"white",
-              border:"none",
-              borderRadius:4,
-              padding:"4px 8px"
+            className={`${styles.payBtn} ${payment === "cash" ? styles.active : ""}`}
+            onClick={() => {
+              setPayment("cash");
+              quickSell(selectedProduct);
             }}
           >
-            Remove
+            Cash
+          </button>
+
+          <button
+            className={`${styles.payBtn} ${payment === "card" ? styles.active : ""}`}
+            onClick={() => {
+              setPayment("card");
+              quickSell(selectedProduct);
+            }}
+          >
+            Card
+          </button>
+
+          <button className={styles.undo} onClick={undoSale}>
+            Undo
           </button>
 
         </div>
 
-      ))}
-
-      <div style={{ marginTop: 20 }}>
-
-        <button
-          onClick={() => checkout("cash")}
-          style={{
-            padding: "12px",
-            background: "green",
-            color: "white",
-            marginRight: 10
-          }}
-        >
-          Pay Cash
-        </button>
-
-        <button
-          onClick={() => checkout("card")}
-          style={{
-            padding: "12px",
-            background: "purple",
-            color: "white",
-            marginRight: 10
-          }}
-        >
-          Pay Card
-        </button>
-
-        <button
-          onClick={undoSale}
-          style={{
-            padding: "12px",
-            background: "red",
-            color: "white",
-            marginRight:10
-          }}
-        >
-          Undo Last Sale
-        </button>
-
-        <button
-          onClick={endShift}
-          style={{
-            padding: "12px",
-            background: "black",
-            color: "white"
-          }}
-        >
-          End Shift
-        </button>
-
       </div>
 
     </div>
-
   );
-
 }

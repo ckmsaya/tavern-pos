@@ -26,7 +26,7 @@ Legend
 );
 
 export default function Dashboard(){
-
+const [staffStats,setStaffStats] = useState<any>({});
 const [products,setProducts]=useState<any[]>([]);
 const [sales,setSales]=useState<any[]>([]);
 const [revenue,setRevenue]=useState(0);
@@ -41,14 +41,46 @@ useEffect(()=>{
   return()=>clearInterval(interval);
 },[]);
 
+async function resetDay(){
+
+  const confirmReset = confirm("Reset all daily data?");
+
+  if(!confirmReset) return;
+
+  // 🔁 Reset all sales
+  await supabase.from("sales").delete().neq("id",0);
+
+  // 📦 Reset opening stock = current stock
+  const {data:products} = await supabase.from("products").select("*");
+
+  for(const p of products){
+
+    await supabase
+      .from("products")
+      .update({
+        opening_stock: p.stock
+      })
+      .eq("id", p.id);
+
+  }
+
+  alert("System reset for new day");
+
+  location.reload();
+}
+
 async function load(){
 
 try{
 
-const {data:prod}=await supabase.from("products").select("*");
+const {data:prod}=await supabase
+  .from("products")
+  .select("*")
+  .order("name",{ascending:true});
 const {data:salesData}=await supabase
 .from("sales")
 .select("*")
+.gte("created_at", new Date().toISOString().split("T")[0])
 .order("created_at",{ascending:false})
 .limit(20);
 
@@ -56,7 +88,20 @@ if(!prod||!salesData)return;
 
 setProducts(prod);
 setSales(salesData);
+// 👥 STAFF PERFORMANCE
+const stats:any = {};
 
+salesData.forEach((s:any)=>{
+
+  if(!stats[s.staff_name]){
+    stats[s.staff_name] = 0;
+  }
+
+  stats[s.staff_name] += s.total;
+
+});
+
+setStaffStats(stats);
 // 💰 revenue
 let r=0, c=0, ca=0;
 
@@ -210,11 +255,28 @@ const lowStockUI=products.filter((p:any)=>p.stock<=5);
 
 return(
 
+
 <div className={styles.container}>
 
 <h1 className={styles.title}>Tavern Dashboard</h1>
 
 <div className={styles.cards}>
+<div className={styles.panel}>
+
+  <h3 className={styles.panelTitle}>🏆 Staff Performance</h3>
+
+  {Object.entries(staffStats)
+    .sort((a:any,b:any)=> b[1]-a[1])
+    .map(([name,total]:any)=>(
+      
+      <div key={name} className={styles.staffRow}>
+        <span>{name}</span>
+        <span>R{total}</span>
+      </div>
+
+  ))}
+
+</div>
 
 <div className={styles.card}>
 <p className={styles.cardLabel}>Revenue</p>
@@ -233,7 +295,7 @@ return(
 
 <div className={styles.card}>
 <p className={styles.cardLabel}>Profit</p>
-<h2 className={styles.cardValue}>R{profit}</h2>
+<h2 className={styles.cardValue}>R{profit.toFixed(2)}</h2>
 </div>
 
 </div>
@@ -241,6 +303,9 @@ return(
 <div style={{marginBottom:20}}>
 <button className={styles.btn} onClick={cashDrawerCheck}>Cash Drawer</button>
 <button className={styles.btn} onClick={closeDay}>Close Day</button>
+<button className={styles.btn} onClick={resetDay}>
+Reset Day
+</button>
 </div>
 
 <div className={styles.row}>
@@ -312,7 +377,7 @@ return(
 <td>{p.opening_stock}</td>
 <td>{p.stock}</td>
 <td>{sold}</td>
-<td>R{pr}</td>
+<td>R{pr.toFixed(2)}</td>
 <td>
 <button className={styles.btn} onClick={()=>restockProduct(p)}>
 Restock

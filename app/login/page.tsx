@@ -1,76 +1,65 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation";
+import styles from "./login.module.css";
 
 export default function Login() {
 
-  const router = useRouter();
-
   const [pin, setPin] = useState("");
 
-  async function handleLogin() {
+  function login() {
 
-    const { data, error } = await supabase
-  .from("users")
-  .select("*")
-  .eq("pin", pin.trim())
-  .single();
+  if (pin === "1111") {
+    localStorage.setItem("staffName", "Owner");
+    localStorage.setItem("role", "owner");
+    window.location.href = "/dashboard"; // 👈 owner goes to dashboard
 
-    if (error || !data) {
-      alert("Invalid PIN");
-      return;
-    }
+  } else if (pin === "2222") {
+    localStorage.setItem("staffName", "Omphile");
+    localStorage.setItem("role", "staff");
+    window.location.href = "/pos";
 
-    // Save staff name locally
-    localStorage.setItem("staffName", data.name);
+  } else if (pin === "3333") {
+    localStorage.setItem("staffName", "Staff 1");
+    localStorage.setItem("role", "staff");
+    window.location.href = "/pos";
 
-    // CLOCK IN
-    await supabase
-      .from("staff_shifts")
-      .insert({
-        staff_name: data.name,
-        clock_in: new Date()
-      });
-
-    if (data.role === "owner") {
-      router.push("/dashboard");
-    } else {
-      router.push("/pos");
-    }
-
+  } else {
+    alert("Invalid PIN");
   }
 
+  setPin("");
+}
+
   return (
-    <main style={{ padding: "40px", fontFamily: "sans-serif" }}>
+    <div className={styles.container}>
 
-      <h1>Tavern Login</h1>
+      <div className={styles.card}>
 
-      <input
-        type="password"
-        placeholder="Enter PIN"
-        value={pin}
-        onChange={(e) => setPin(e.target.value)}
-        style={{
-          padding: "10px",
-          marginTop: "20px",
-          display: "block"
-        }}
-      />
+        <h1 className={styles.title}>Tavern Login</h1>
 
-      <button
-        onClick={handleLogin}
-        style={{
-          marginTop: "10px",
-          padding: "10px",
-          backgroundColor: "black",
-          color: "white"
-        }}
-      >
-        Login
-      </button>
+        <input
+          type="password"
+          placeholder="Enter PIN"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
 
-    </main>
+          /* 🔥 ENTER KEY LOGIN */
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              login();
+            }
+          }}
+
+          className={styles.input}
+        />
+
+        <button className={styles.button} onClick={login}>
+          Login
+        </button>
+
+      </div>
+
+    </div>
   );
 }

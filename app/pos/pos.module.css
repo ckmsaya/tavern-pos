@@ -1,0 +1,214 @@
+/* 🌍 GLOBAL CONTAINER */
+.container{
+  padding:20px;
+  padding-bottom:110px;
+  background: radial-gradient(circle at top, #111 0%, #000 60%);
+  color:white;
+  min-height:100vh;
+  font-family:Arial, sans-serif;
+}
+/* 🧾 TITLE */
+.title{
+  color:#d4af37;
+  margin-bottom:10px;
+}
+
+.staff{
+  margin-bottom:15px;
+  color:#aaa;
+}
+
+/* 🔝 TOP BAR */
+.topBar{
+  display:flex;
+  gap:10px;
+  margin-bottom:20px;
+  flex-wrap:wrap;
+
+  background:rgba(255,255,255,0.03);
+  backdrop-filter: blur(8px);
+  padding:10px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,0.05);
+}
+
+/* 🔍 SEARCH */
+.search,
+.select{
+  padding:10px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.1);
+  color:white;
+  border-radius:8px;
+  outline:none;
+}
+
+.search::placeholder{
+  color:#888;
+}
+
+/* 🔢 QUANTITY */
+.qtyBox{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  background:#111;
+  padding:5px;
+  border-radius:6px;
+  border:1px solid #333;
+}
+
+.qtyBox button{
+  background:#222;
+  color:white;
+  border:none;
+  padding:5px 10px;
+  cursor:pointer;
+}
+
+/* 🍺 PRODUCT GRID */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(140px,1fr));
+  gap:12px;
+}
+
+/* 🧱 PRODUCT CARD */
+.card{
+  border:1px solid rgba(255,255,255,0.08);
+  padding:12px;
+  border-radius:12px;
+  cursor:pointer;
+  transition:0.25s;
+
+  background:rgba(255,255,255,0.03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.card:hover{
+  border-color:#d4af37;
+  transform:scale(1.04);
+  background:rgba(255,255,255,0.06);
+}
+
+/* ✅ SELECTED CARD */
+.selectedCard{
+  border:2px solid #d4af37;
+  background:rgba(212,175,55,0.08);
+  box-shadow:0 0 10px rgba(212,175,55,0.2);
+}
+
+/* 🧾 TEXT */
+.name{
+  font-size:14px;
+}
+
+.price{
+  color:#d4af37;
+  font-weight:bold;
+}
+
+.stock{
+  font-size:12px;
+  color:#aaa;
+}
+
+.low{
+  color:red;
+}
+
+/* 🔻 BOTTOM BAR */
+.bottomBar{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+
+  background:rgba(10,10,10,0.6);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+
+  border-top:1px solid rgba(255,255,255,0.08);
+  padding:12px;
+
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+/* 📦 SELECTED INFO */
+.selected{
+  color:#d4af37;
+  display:flex;
+  gap:15px;
+  flex-wrap:wrap;
+  font-size:14px;
+}
+
+/* 🎮 ACTION BUTTONS */
+.actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+/* 💳 PAYMENT BUTTONS */
+.payBtn{
+  padding:10px 15px;
+  border:1px solid rgba(255,255,255,0.1);
+  background:rgba(255,255,255,0.05);
+  color:white;
+  cursor:pointer;
+  border-radius:8px;
+  transition:0.2s;
+  flex:1;
+  min-width:80px;
+}
+
+.payBtn:hover{
+  border-color:#d4af37;
+  background:rgba(212,175,55,0.1);
+}
+
+/* ✅ ACTIVE PAYMENT */
+.active{
+  background:#d4af37;
+  color:black;
+  box-shadow:0 0 8px rgba(212,175,55,0.4);
+}
+
+/* ↩️ UNDO */
+.undo{
+  background:rgba(255,0,0,0.15);
+  color:#ff4d4d;
+  border:1px solid rgba(255,0,0,0.3);
+  padding:10px 15px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+/* 📱 MOBILE FIXES */
+@media (max-width:600px){
+
+  .card{
+    padding:8px;
+    font-size:12px;
+  }
+
+  .bottomBar{
+    flex-direction:column;
+    align-items:stretch;
+  }
+
+  .actions{
+    width:100%;
+  }
+
+  .payBtn{
+    width:100%;
+  }
+
+}

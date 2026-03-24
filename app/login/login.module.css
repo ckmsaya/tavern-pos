@@ -1,0 +1,64 @@
+.container{
+  height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+
+  background: radial-gradient(circle at top, #111 0%, #000 70%);
+}
+
+/* 💎 GLASS CARD */
+.card{
+  width:300px;
+  padding:30px;
+
+  border-radius:16px;
+
+  background:rgba(255,255,255,0.05);
+  backdrop-filter: blur(15px);
+
+  border:1px solid rgba(255,255,255,0.1);
+
+  display:flex;
+  flex-direction:column;
+  gap:15px;
+}
+
+/* 🧾 TITLE */
+.title{
+  text-align:center;
+  color:#d4af37;
+}
+
+/* 🔐 INPUT */
+.input{
+  padding:12px;
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,0.1);
+
+  background:rgba(255,255,255,0.08);
+  color:white;
+  outline:none;
+}
+
+.input::placeholder{
+  color:#aaa;
+}
+
+/* 🔘 BUTTON */
+.button{
+  padding:12px;
+  border:none;
+  border-radius:8px;
+
+  background:#d4af37;
+  color:black;
+  font-weight:bold;
+
+  cursor:pointer;
+  transition:0.2s;
+}
+
+.button:hover{
+  opacity:0.9;
+}

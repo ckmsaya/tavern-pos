@@ -171,3 +171,24 @@
     grid-template-columns: 1fr;
   }
 }
+
+.panel{
+  margin-top:20px;
+  background:#111;
+  padding:16px;
+  border-radius:12px;
+  border:1px solid rgba(212,175,55,0.2);
+}
+
+.staffRow{
+  display:flex;
+  justify-content:space-between;
+  padding:8px 0;
+  border-bottom:1px solid rgba(255,255,255,0.05);
+  font-size:14px;
+}
+
+.staffRow span:last-child{
+  color:#d4af37;
+  font-weight:600;
+}
