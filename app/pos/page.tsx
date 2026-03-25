@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "../../lib/supabase";
 import styles from "./pos.module.css";
 
@@ -20,6 +20,7 @@ export default function POS() {
   // 🔢 QUANTITY
   const [quantity, setQuantity] = useState(1);
   const [barcode, setBarcode] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   // 💳 PAYMENT
   const [payment, setPayment] = useState<"cash" | "card">("cash");
 
@@ -30,11 +31,13 @@ export default function POS() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
   useEffect(() => {
-    loadProducts();
+  loadProducts();
 
-    const saved = localStorage.getItem("staffName");
-    if (saved) setStaffName(saved);
-  }, []);
+  const saved = localStorage.getItem("staffName");
+  if (saved) setStaffName(saved);
+
+  inputRef.current?.focus(); // 👈 ADD THIS
+}, []);
 
   async function loadProducts() {
     const { data } = await supabase
@@ -136,21 +139,31 @@ export default function POS() {
     loadProducts();
   }
 async function handleScan(code: string) {
-  setBarcode(code);
 
-  if (code.length < 5) return;
+  const cleanCode = code.trim();
 
-  const { data } = await supabase
+  if (!cleanCode) return;
+
+  const { data, error } = await supabase
     .from("products")
     .select("*")
-    .eq("barcode", code)
+    .eq("barcode", cleanCode)
     .maybeSingle();
+
+  if (error) {
+    console.error("Scan error:", error);
+    alert("Error scanning product");
+    return;
+  }
 
   if (data) {
     setSelectedProduct(data);
-    setBarcode(""); // clear after scan
+    setBarcode("");
   } else {
-    alert("Product not found. Add it in dashboard.");
+    alert("Product not found");
+    setBarcode("");setTimeout(() => {
+  inputRef.current?.focus();
+}, 50);
   }
 }
   // 🔍 FILTER
@@ -200,9 +213,15 @@ async function handleScan(code: string) {
           onChange={(e) => setSearch(e.target.value)}
         />
 <input
+  ref={inputRef}
   placeholder="Scan barcode..."
   value={barcode}
-  onChange={(e) => handleScan(e.target.value)}
+  onChange={(e) => setBarcode(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      handleScan(barcode);
+    }
+  }}
   className={styles.search}
 />
         <select
