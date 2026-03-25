@@ -34,7 +34,13 @@ const [cash,setCash]=useState(0);
 const [card,setCard]=useState(0);
 const [profit,setProfit]=useState(0);
 const [alerted,setAlerted]=useState<any>({});
-
+const [newProduct, setNewProduct] = useState({
+  name: "",
+  price: "",
+  cost_price: "",
+  category: "",
+  barcode: ""
+});
 useEffect(()=>{
   load();
   const interval=setInterval(load,5000);
@@ -69,6 +75,53 @@ for (const p of products) {
   alert("System reset for new day");
 
   location.reload();
+}
+
+async function addProduct(){
+const { data: existing } = await supabase
+  .from("products")
+  .select("*")
+  .eq("barcode", newProduct.barcode)
+  .maybeSingle();
+
+if(existing){
+  alert("Product with this barcode already exists");
+  return;
+}
+  if(!newProduct.name || !newProduct.barcode || !newProduct.price || !newProduct.cost_price){
+  alert("Fill all fields");
+  return;
+}
+
+  const { error } = await supabase
+    .from("products")
+    .insert({
+      name: newProduct.name,
+      category: newProduct.category || "other",
+      price: Number(newProduct.price),
+      cost_price: Number(newProduct.cost_price),
+      stock: 0,
+      opening_stock: 0,
+      barcode: newProduct.barcode
+    });
+
+  if(error){
+    alert("Error adding product");
+    console.log(error);
+    return;
+  }
+
+  alert("Product added ✅");
+
+  setNewProduct({
+  name: "",
+  price: "",
+  cost_price: "", // ✅ ADD THIS
+  category: "",
+  barcode: ""
+});
+
+  load(); // refresh dashboard
 }
 
 async function load(){
@@ -255,13 +308,85 @@ tension:0.4
 
 const lowStockUI=products.filter((p:any)=>p.stock<=5);
 
+
+
 return(
 
 
 <div className={styles.container}>
 
 <h1 className={styles.title}>Tavern Dashboard</h1>
+<div style={{
+  marginBottom:20,
+  padding:15,
+  border:"1px solid #333",
+  borderRadius:10
+}}>
 
+  <h3 style={{color:"#d4af37"}}>➕ Add New Product</h3>
+
+  <input
+    placeholder="Scan or enter barcode"
+    value={newProduct.barcode}
+    onChange={(e)=>setNewProduct({...newProduct, barcode:e.target.value})}
+    style={{marginRight:10, padding:8}}
+  />
+
+  <input
+    placeholder="Product name"
+    value={newProduct.name}
+    onChange={(e)=>setNewProduct({...newProduct, name:e.target.value})}
+    style={{marginRight:10, padding:8}}
+  />
+
+  <select
+  value={newProduct.category}
+  onChange={(e)=>setNewProduct({...newProduct, category:e.target.value})}
+  style={{
+    marginRight:10,
+    padding:8,
+    background:"#111",
+    color:"#fff",
+    border:"1px solid #333",
+    borderRadius:6
+  }}
+>
+  <option value="">Select category</option>
+  <option value="beer">Beer</option>
+  <option value="cider">Cider</option>
+  <option value="spirit">Spirit</option>
+  <option value="wine">Wine</option>
+</select>
+<input
+  placeholder="Cost price"
+  value={newProduct.cost_price}
+  onChange={(e)=>setNewProduct({...newProduct, cost_price:e.target.value})}
+  style={{marginRight:10, padding:8}}
+/>
+  <input
+    placeholder="Price"
+    value={newProduct.price}
+    onChange={(e)=>setNewProduct({...newProduct, price:e.target.value})}
+    style={{marginRight:10, padding:8}}
+  />
+
+  <button
+  onClick={addProduct}
+  style={{
+    background:"#d4af37",
+    color:"#000",
+    padding:"10px 18px",
+    border:"none",
+    borderRadius:8,
+    fontWeight:"bold",
+    cursor:"pointer",
+    transition:"0.2s"
+  }}
+>
+  ➕ Add Product
+</button>
+
+</div>
 <div className={styles.cards}>
 <div className={styles.panel}>
 
@@ -341,7 +466,7 @@ Reset Day
 ))}
 </div>
 
-</div>
+</div> 
 
 <div className={styles.inventory}>
 

@@ -9,18 +9,18 @@ export default function Login() {
 
   function login() {
 
-  if (pin === "1111") {
+  if (pin === "1986") {
     localStorage.setItem("staffName", "Owner");
     localStorage.setItem("role", "owner");
     window.location.href = "/dashboard"; // 👈 owner goes to dashboard
 
-  } else if (pin === "2222") {
+  } else if (pin === "1905") {
     localStorage.setItem("staffName", "Omphile");
     localStorage.setItem("role", "staff");
     window.location.href = "/pos";
 
-  } else if (pin === "3333") {
-    localStorage.setItem("staffName", "Staff 1");
+  } else if (pin === "1056") {
+    localStorage.setItem("staffName", "Karabo");
     localStorage.setItem("role", "staff");
     window.location.href = "/pos";
 

@@ -212,3 +212,52 @@
   }
 
 }
+
+.cartList {
+  margin-top: 10px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.cartItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255,255,255,0.05);
+  padding: 8px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+
+.cartName {
+  flex: 1;
+}
+
+.cartControls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cartControls button {
+  background: #222;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.cartPrice {
+  width: 70px;
+  text-align: right;
+}
+
+.removeBtn {
+  background: red;
+  color: white;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}

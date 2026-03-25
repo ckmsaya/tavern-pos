@@ -19,7 +19,7 @@ export default function POS() {
 
   // 🔢 QUANTITY
   const [quantity, setQuantity] = useState(1);
-
+  const [barcode, setBarcode] = useState("");
   // 💳 PAYMENT
   const [payment, setPayment] = useState<"cash" | "card">("cash");
 
@@ -47,12 +47,12 @@ export default function POS() {
 
   // 🔐 LOGIN
   function login() {
-    if (pin === "2222") {
+    if (pin === "1905") {
       setStaffName("Omphile");
       localStorage.setItem("staffName", "Omphile");
-    } else if (pin === "3333") {
-      setStaffName("Staff 1");
-      localStorage.setItem("staffName", "Staff 1");
+    } else if (pin === "1056") {
+      setStaffName("Karabo");
+      localStorage.setItem("staffName", "Karabo");
     } else {
       alert("Wrong PIN");
       return;
@@ -135,7 +135,24 @@ export default function POS() {
     setLastSale(null);
     loadProducts();
   }
+async function handleScan(code: string) {
+  setBarcode(code);
 
+  if (code.length < 5) return;
+
+  const { data } = await supabase
+    .from("products")
+    .select("*")
+    .eq("barcode", code)
+    .maybeSingle();
+
+  if (data) {
+    setSelectedProduct(data);
+    setBarcode(""); // clear after scan
+  } else {
+    alert("Product not found. Add it in dashboard.");
+  }
+}
   // 🔍 FILTER
   const filteredProducts = products.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
@@ -145,6 +162,9 @@ export default function POS() {
 
   // 🔐 LOGIN SCREEN
   if (!staffName) {
+    
+
+    
     return (
       <div className={styles.container}>
         <h1 className={styles.title}>Staff Login</h1>
@@ -179,7 +199,12 @@ export default function POS() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-
+<input
+  placeholder="Scan barcode..."
+  value={barcode}
+  onChange={(e) => handleScan(e.target.value)}
+  className={styles.search}
+/>
         <select
           className={styles.select}
           value={category}
