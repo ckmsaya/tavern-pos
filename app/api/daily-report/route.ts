@@ -469,7 +469,7 @@ function buildPDF(data: ReportData): Buffer | Uint8Array {
 export async function POST(req: NextRequest) {
   try {
     const data: ReportData = await req.json();
-    const pdf = buildPDF(data);
+    const pdf = new Uint8Array(buildPDF(data));
 
     return new NextResponse(pdf, {
       status: 200,
