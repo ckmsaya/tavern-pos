@@ -1,52 +1,57 @@
-import { NextResponse } from "next/server";
-import Twilio from "twilio";
-import { createClient } from "@supabase/supabase-js";
+import { NextRequest, NextResponse } from "next/server";
+import { exec } from "child_process";
+import { promisify } from "util";
+import path from "path";
+import fs from "fs";
+import os from "os";
 
-export async function POST(){
+const execAsync = promisify(exec);
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
 
-  const { data:products } = await supabase.from("products").select("*");
-  const { data:sales } = await supabase.from("sales").select("*");
+    // ── 1. Write the data to a temp JSON file ──────────────────────────
+    const tmpDir      = os.tmpdir();
+    const dataFile    = path.join(tmpDir, `tavern_data_${Date.now()}.json`);
+    const outputFile  = path.join(tmpDir, `tavern_report_${Date.now()}.pdf`);
+    const scriptPath  = path.join(process.cwd(), "script", "generate_report.py");
 
-  if(!products || !sales){
-    return NextResponse.json({ error:"No data" },{ status:400 });
+    fs.writeFileSync(dataFile, JSON.stringify(body));
+
+    // ── 2. Call Python script ──────────────────────────────────────────
+    const cmd = `python "${scriptPath}" --data-file "${dataFile}" --output "${outputFile}"`;
+
+    const { stderr } = await execAsync(cmd);
+
+    if (false) {
+      console.error("Python error:", stderr);
+      return NextResponse.json({ error: "Report generation failed", detail: stderr }, { status: 500 });
+    }
+
+    // ── 3. Read the PDF and stream it back ────────────────────────────
+    if (!fs.existsSync(outputFile)) {
+      return NextResponse.json({ error: "PDF not created" }, { status: 500 });
+    }
+
+    const pdfBuffer = fs.readFileSync(outputFile);
+
+    // ── 4. Clean up temp files ─────────────────────────────────────────
+    fs.unlinkSync(dataFile);
+    fs.unlinkSync(outputFile);
+
+    // ── 5. Return PDF ─────────────────────────────────────────────────
+    return new NextResponse(pdfBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type":        "application/pdf",
+        "Content-Disposition": `attachment; filename="tavern_report_${body.date ?? "today"}.pdf"`,
+        "Content-Length":      pdfBuffer.length.toString(),
+      },
+    });
+
+  } catch (err: any) {
+    console.error("Daily report error:", err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
-
-  let revenue = 0;
-  let profit = 0;
-
-  sales.forEach((s:any)=>{
-    revenue += s.total;
-  });
-
-  products.forEach((p:any)=>{
-    const sold = (p.opening_stock ?? 0) - p.stock;
-    const unit = (p.price ?? 0) - (p.cost_price ?? 0);
-    profit += sold * unit;
-  });
-
-  const message = `
-📊 Tavern Daily Summary
-
-Revenue: R${revenue}
-Profit: R${profit}
-`;
-
-  const client = Twilio(
-    process.env.TWILIO_ACCOUNT_SID!,
-    process.env.TWILIO_AUTH_TOKEN!
-  );
-
-  await client.messages.create({
-    from: "whatsapp:+14155238886",
-    to: "whatsapp:+27646261102",
-    body: message
-  });
-
-  return NextResponse.json({ success:true });
-
 }

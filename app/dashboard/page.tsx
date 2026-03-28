@@ -34,7 +34,9 @@ const [cash,setCash]=useState(0);
 const [card,setCard]=useState(0);
 const [profit,setProfit]=useState(0);
 const [alerted,setAlerted]=useState<any>({});
+const [reportLoading,setReportLoading]=useState(false);
 const [newProduct, setNewProduct] = useState({
+  
   name: "",
   price: "",
   cost_price: "",
@@ -42,7 +44,9 @@ const [newProduct, setNewProduct] = useState({
   barcode: ""
 });
 useEffect(()=>{
+
   load();
+  
   const interval=setInterval(load,5000);
   return()=>clearInterval(interval);
 },[]);
@@ -239,7 +243,9 @@ Difference: R${diff}
 }
 
 // 📊 CLOSE DAY
-function closeDay(){
+async function closeDay(){setReportLoading(true);try{const productsWithSold=products.map((p:any)=>({name:p.name,category:p.category,price:p.price,cost_price:p.cost_price,opening_stock:p.opening_stock??0,stock:p.stock,sold:(p.opening_stock??0)-p.stock}));const staffArray=Object.entries(staffStats).map(([name,total])=>({name,total:total as number}));const payload={date:new Date().toISOString().split("T")[0],revenue,cash,card,profit,staff:staffArray,products:productsWithSold,sales};const res=await fetch("/api/daily-report",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});if(!res.ok){const err=await res.json();alert(`Report failed: ${err.error??"Unknown error"}`);return;}const blob=await res.blob();const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`tavern_report_${payload.date}.pdf`;a.click();URL.revokeObjectURL(url);}catch(err){console.error("Close day error:",err);alert("Could not generate report.");}finally{setReportLoading(false);}}
+
+async function closeDay_DELETED(){
 
 let report=`TAVERN DAILY REPORT\n\n`;
 
@@ -429,7 +435,7 @@ return(
 
 <div style={{marginBottom:20}}>
 <button className={styles.btn} onClick={cashDrawerCheck}>Cash Drawer</button>
-<button className={styles.btn} onClick={closeDay}>Close Day</button>
+<button className={styles.btn} onClick={closeDay} disabled={reportLoading} style={{opacity:reportLoading?0.6:1,cursor:reportLoading?"wait":"pointer"}}>{reportLoading?"Generating...":"Close Day"}</button>
 <button className={styles.btn} onClick={resetDay}>
 Reset Day
 </button>
