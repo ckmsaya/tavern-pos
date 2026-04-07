@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 import styles from "./dashboard.module.css";
 
@@ -18,6 +19,7 @@ import { Line } from "react-chartjs-2";
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
 export default function Dashboard() {
+  const router = useRouter();
   const [staffStats, setStaffStats]     = useState<any>({});
   const [products, setProducts]         = useState<any[]>([]);
   const [sales, setSales]               = useState<any[]>([]);
@@ -50,10 +52,22 @@ export default function Dashboard() {
   const alertedRef = useRef<any>({});
 
   useEffect(() => {
-    load();
-    const interval = setInterval(load, 5000);
+    let interval: ReturnType<typeof setInterval>;
+
+    async function init() {
+      const res = await fetch("/api/me");
+      if (!res.ok) {
+        router.replace("/login");
+        return;
+      }
+
+      await load();
+      interval = setInterval(load, 5000);
+    }
+
+    init();
     return () => clearInterval(interval);
-  }, []);
+  }, [router]);
 
   // ── LOAD DATA ─────────────────────────────────────────────────────────────
   async function load() {

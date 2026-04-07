@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabase";
 
-// ─── TYPES ────────────────────────────────────────────────────────────────────
 interface Product {
   id: number;
   name: string;
@@ -30,49 +30,40 @@ interface SaleRecord {
   time: string;
 }
 
-// ─── CHANGE THIS FOR TAVERN-POS (remove business_id filter from queries) ─────
-const BUSINESS_ID: string | null = null; // Set to null for tavern-pos, fill in for TillFlow
+const BUSINESS_ID: string | null = null;
 
 export default function POS({ businessId }: { businessId?: string }) {
+  const router = useRouter();
   const BIZ_ID = businessId ?? BUSINESS_ID;
 
-  // Auth
-  const [staffName, setStaffName]   = useState<string | null>(null);
-  const [pin, setPin]               = useState("");
-  const [pinError, setPinError]     = useState("");
-  const [staffList, setStaffList]   = useState<any[]>([]);
-
-  // Data
-  const [products, setProducts]     = useState<Product[]>([]);
-
-  // Filters
-  const [search, setSearch]         = useState("");
-  const [category, setCategory]     = useState("all");
-
-  // Cart
-  const [cart, setCart]             = useState<CartItem[]>([]);
-
-  // Payment
-  const [payment, setPayment]       = useState<"cash" | "card">("cash");
-
-  // Undo history (last 10 sales)
+  const [staffName, setStaffName]     = useState<string | null>(null);
+  const [products, setProducts]       = useState<Product[]>([]);
+  const [search, setSearch]           = useState("");
+  const [category, setCategory]       = useState("all");
+  const [cart, setCart]               = useState<CartItem[]>([]);
+  const [payment, setPayment]         = useState<"cash" | "card">("cash");
   const [undoHistory, setUndoHistory] = useState<SaleRecord[]>([]);
-  const [showUndo, setShowUndo]     = useState(false);
-
-  // Confirmation
+  const [showUndo, setShowUndo]       = useState(false);
   const [lastReceipt, setLastReceipt] = useState<SaleRecord | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
-
-  // Barcode
-  const [barcode, setBarcode]       = useState("");
-  const barcodeRef                  = useRef<HTMLInputElement>(null);
+  const [barcode, setBarcode]         = useState("");
+  const barcodeRef                    = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    fetchStaffName();
     loadProducts();
-    loadStaff();
-    const saved = localStorage.getItem("tillflow_staff");
-    if (saved) setStaffName(saved);
   }, []);
+
+  async function fetchStaffName() {
+    const res = await fetch("/api/me");
+    if (!res.ok) {
+      router.replace("/login");
+      return;
+    }
+
+    const data = await res.json();
+    if (data.name) setStaffName(data.name);
+  }
 
   async function loadProducts() {
     let query = supabase.from("products").select("*").order("name", { ascending: true });
@@ -81,48 +72,18 @@ export default function POS({ businessId }: { businessId?: string }) {
     if (data) setProducts(data);
   }
 
-  async function loadStaff() {
-    let query = supabase.from("staff").select("*");
-    if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
-    const { data } = await query;
-    if (data) setStaffList(data);
-  }
-
-  // ── STAFF LOGIN ─────────────────────────────────────────────────────────────
-  async function login() {
-    setPinError("");
-    if (!pin || pin.length < 4) { setPinError("Enter your PIN"); return; }
-
-    // Check against Supabase staff table
-    let query = supabase.from("staff").select("*").eq("pin", pin);
-    if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
-    const { data } = await query.maybeSingle();
-
-    if (data) {
-      setStaffName(data.name);
-      localStorage.setItem("tillflow_staff", data.name);
-      setPin("");
-    } else {
-      setPinError("Wrong PIN. Try again.");
-      setPin("");
-    }
-  }
-
   function logout() {
-    setStaffName(null);
-    localStorage.removeItem("tillflow_staff");
-    setCart([]);
+    fetch("/api/logout", { method: "POST" }).then(() => {
+      window.location.href = "/login";
+    });
   }
 
-  // ── BARCODE SCAN ────────────────────────────────────────────────────────────
   async function handleScan(code: string) {
     const clean = code.trim();
     if (!clean) return;
-
     let query = supabase.from("products").select("*").eq("barcode", clean);
     if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
     const { data } = await query.maybeSingle();
-
     if (data) {
       addToCart(data);
       setBarcode("");
@@ -134,10 +95,8 @@ export default function POS({ businessId }: { businessId?: string }) {
     }
   }
 
-  // ── CART ────────────────────────────────────────────────────────────────────
   function addToCart(product: Product) {
     if (product.stock <= 0) { alert(`${product.name} is out of stock`); return; }
-
     setCart(prev => {
       const existing = prev.find(i => i.product.id === product.id);
       if (existing) {
@@ -169,12 +128,10 @@ export default function POS({ businessId }: { businessId?: string }) {
 
   const cartTotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
 
-  // ── PROCESS SALE ────────────────────────────────────────────────────────────
   async function processSale() {
     if (cart.length === 0) { alert("Cart is empty"); return; }
     if (!staffName) return;
 
-    // Check stock for all items
     for (const item of cart) {
       if (item.quantity > item.product.stock) {
         alert(`Not enough stock for ${item.product.name}. Only ${item.product.stock} left.`);
@@ -186,7 +143,6 @@ export default function POS({ businessId }: { businessId?: string }) {
     const receiptItems: { name: string; quantity: number; total: number }[] = [];
 
     for (const item of cart) {
-      // Insert sale
       const { data: sale, error } = await supabase.from("sales").insert({
         ...(BIZ_ID ? { business_id: BIZ_ID } : {}),
         payment_method: payment,
@@ -198,7 +154,6 @@ export default function POS({ businessId }: { businessId?: string }) {
       if (error) { alert("Sale failed: " + error.message); return; }
       saleIds.push(sale.id);
 
-      // Update stock
       await supabase.from("products")
         .update({ stock: item.product.stock - item.quantity })
         .eq("id", item.product.id);
@@ -210,7 +165,6 @@ export default function POS({ businessId }: { businessId?: string }) {
       });
     }
 
-    // Build receipt
     const receipt: SaleRecord = {
       saleIds,
       items:      receiptItems,
@@ -220,7 +174,6 @@ export default function POS({ businessId }: { businessId?: string }) {
       time:       new Date().toLocaleTimeString(),
     };
 
-    // Add to undo history (keep last 10)
     setUndoHistory(prev => [receipt, ...prev].slice(0, 10));
     setLastReceipt(receipt);
     setShowReceipt(true);
@@ -228,17 +181,14 @@ export default function POS({ businessId }: { businessId?: string }) {
     loadProducts();
   }
 
-  // ── UNDO SALE ───────────────────────────────────────────────────────────────
   async function undoSale(record: SaleRecord) {
     const confirm = window.confirm(`Undo sale of R${record.grandTotal} from ${record.time}?`);
     if (!confirm) return;
 
-    // Delete all sale records
     for (const id of record.saleIds) {
       await supabase.from("sales").delete().eq("id", id);
     }
 
-    // Restore stock for each item
     for (const item of record.items) {
       const prod = products.find(p => p.name === item.name);
       if (prod) {
@@ -248,65 +198,36 @@ export default function POS({ businessId }: { businessId?: string }) {
       }
     }
 
-    // Remove from history
     setUndoHistory(prev => prev.filter(r => r.saleIds[0] !== record.saleIds[0]));
     setShowUndo(false);
     loadProducts();
     alert("Sale undone successfully");
   }
 
-  // ── FILTERS ─────────────────────────────────────────────────────────────────
   const filtered = products.filter(p => {
     const matchSearch   = p.name.toLowerCase().includes(search.toLowerCase());
     const matchCategory = category === "all" || p.category === category;
     return matchSearch && matchCategory;
   });
 
-  // ── STYLES (inline for portability) ─────────────────────────────────────────
   const S = {
-    container: { padding: 20, paddingBottom: 160, background: "radial-gradient(circle at top, #111 0%, #000 60%)", color: "white", minHeight: "100vh", fontFamily: "Arial, sans-serif" } as React.CSSProperties,
-    title:     { color: "#d4af37", marginBottom: 10, fontSize: 22, fontWeight: 700 } as React.CSSProperties,
-    input:     { padding: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", borderRadius: 8, outline: "none", fontSize: 14 } as React.CSSProperties,
-    btn:       { padding: "10px 16px", borderRadius: 8, border: "1px solid rgba(212,175,55,0.3)", background: "#111", color: "#d4af37", cursor: "pointer", fontSize: 13, transition: "all .2s" } as React.CSSProperties,
-    goldBtn:   { padding: "12px 24px", background: "#d4af37", color: "#000", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 15 } as React.CSSProperties,
-    card:      { border: "1px solid rgba(255,255,255,0.08)", padding: 12, borderRadius: 12, cursor: "pointer", transition: "0.25s", background: "rgba(255,255,255,0.03)" } as React.CSSProperties,
-    selectedCard: { border: "2px solid #d4af37", background: "rgba(212,175,55,0.08)", boxShadow: "0 0 10px rgba(212,175,55,0.2)" } as React.CSSProperties,
-    overlay:   { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 },
-    modal:     { background: "#111", border: "1px solid #d4af37", borderRadius: 16, padding: 28, maxWidth: 420, width: "90%", maxHeight: "80vh", overflowY: "auto" as const },
+    container:    { padding: 20, paddingBottom: 160, background: "radial-gradient(circle at top, #111 0%, #000 60%)", color: "white", minHeight: "100vh", fontFamily: "Arial, sans-serif" } as React.CSSProperties,
+    title:        { color: "#d4af37", marginBottom: 10, fontSize: 22, fontWeight: 700 } as React.CSSProperties,
+    input:        { padding: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", borderRadius: 8, outline: "none", fontSize: 14 } as React.CSSProperties,
+    btn:          { padding: "10px 16px", borderRadius: 8, border: "1px solid rgba(212,175,55,0.3)", background: "#111", color: "#d4af37", cursor: "pointer", fontSize: 13, transition: "all .2s" } as React.CSSProperties,
+    goldBtn:      { padding: "12px 24px", background: "#d4af37", color: "#000", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 15 } as React.CSSProperties,
+    card:         { border: "1px solid rgba(255,255,255,0.08)", padding: 12, borderRadius: 12, cursor: "pointer", transition: "0.25s", background: "rgba(255,255,255,0.03)" } as React.CSSProperties,
+    overlay:      { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 },
+    modal:        { background: "#111", border: "1px solid #d4af37", borderRadius: 16, padding: 28, maxWidth: 420, width: "90%", maxHeight: "80vh", overflowY: "auto" as const },
   };
 
-  // ── LOGIN SCREEN ─────────────────────────────────────────────────────────────
+  // Show loading while fetching staff name
   if (!staffName) return (
-    <div style={S.container}>
-      <h1 style={S.title}>Staff Login</h1>
-      <div style={{ maxWidth: 300 }}>
-        <input
-          style={{ ...S.input, width: "100%", marginBottom: 12, boxSizing: "border-box" as const, fontSize: 20, letterSpacing: 6, textAlign: "center" }}
-          placeholder="Enter PIN"
-          type="password"
-          value={pin}
-          onChange={e => setPin(e.target.value)}
-          onKeyDown={e => e.key === "Enter" && login()}
-        />
-        {pinError && <p style={{ color: "#ff4d4d", fontSize: 13, marginBottom: 10 }}>{pinError}</p>}
-        <button style={{ ...S.goldBtn, width: "100%" }} onClick={login}>Login</button>
-
-        {/* PIN PAD */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 20 }}>
-          {["1","2","3","4","5","6","7","8","9","","0","⌫"].map((k, i) => (
-            <button key={i} onClick={() => {
-              if (k === "⌫") setPin(p => p.slice(0, -1));
-              else if (k) setPin(p => p + k);
-            }} style={{ padding: "16px 0", background: k ? "#1A1A1A" : "transparent", border: "1px solid #333", color: "#fff", borderRadius: 8, fontSize: 18, cursor: k ? "pointer" : "default" }}>
-              {k}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div style={{ ...S.container, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{ color: "#d4af37" }}>Loading...</p>
     </div>
   );
 
-  // ── MAIN POS ─────────────────────────────────────────────────────────────────
   return (
     <div style={S.container}>
 
@@ -365,10 +286,8 @@ export default function POS({ businessId }: { businessId?: string }) {
         ))}
       </div>
 
-      {/* BOTTOM BAR — CART */}
+      {/* BOTTOM BAR */}
       <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(10,10,10,0.95)", backdropFilter: "blur(15px)", borderTop: "1px solid rgba(255,255,255,0.08)", padding: 12, zIndex: 50 }}>
-
-        {/* CART ITEMS */}
         {cart.length > 0 && (
           <div style={{ maxHeight: 140, overflowY: "auto", marginBottom: 10 }}>
             {cart.map(item => (
@@ -384,7 +303,6 @@ export default function POS({ businessId }: { businessId?: string }) {
           </div>
         )}
 
-        {/* TOTAL + PAYMENT */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
           <div style={{ color: "#d4af37", fontSize: 16, fontWeight: 700 }}>
             {cart.length === 0 ? "Tap a product to add to cart" : `Total: R${cartTotal.toFixed(2)}`}
@@ -431,9 +349,7 @@ export default function POS({ businessId }: { businessId?: string }) {
             <div style={{ textAlign: "center", marginTop: 4, color: "#888", fontSize: 13, marginBottom: 16 }}>
               Paid by {lastReceipt.payment.toUpperCase()}
             </div>
-            <button style={{ ...S.goldBtn, width: "100%" }} onClick={() => setShowReceipt(false)}>
-              Done
-            </button>
+            <button style={{ ...S.goldBtn, width: "100%" }} onClick={() => setShowReceipt(false)}>Done</button>
           </div>
         </div>
       )}
