@@ -35,7 +35,8 @@ const BUSINESS_ID: string | null = null;
 export default function POS({ businessId }: { businessId?: string }) {
   const router = useRouter();
   const BIZ_ID = businessId ?? BUSINESS_ID;
-
+// 🆕 cash modal control
+const [showCashModal, setShowCashModal] = useState(false);
   const [staffName, setStaffName]     = useState<string | null>(null);
   const [products, setProducts]       = useState<Product[]>([]);
   const [search, setSearch]           = useState("");
@@ -46,6 +47,9 @@ export default function POS({ businessId }: { businessId?: string }) {
   const [showUndo, setShowUndo]       = useState(false);
   const [lastReceipt, setLastReceipt] = useState<SaleRecord | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
+const [amountGiven, setAmountGiven] = useState("");
+
+const receiptChange = lastReceipt && amountGiven ? Math.max(0, Number(amountGiven) - lastReceipt.grandTotal) : null;
   const [barcode, setBarcode]         = useState("");
   const barcodeRef                    = useRef<HTMLInputElement>(null);
 
@@ -127,6 +131,25 @@ export default function POS({ businessId }: { businessId?: string }) {
   function clearCart() { setCart([]); }
 
   const cartTotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
+const change = amountGiven ? Math.max(0, Number(amountGiven) - cartTotal) : null;
+
+  // 🆕 confirm cash sale
+function confirmCashSale() {
+  const given = Number(amountGiven);
+
+  if (!amountGiven || isNaN(given)) {
+    alert("Enter valid amount");
+    return;
+  }
+
+  if (given < cartTotal) {
+    alert("Customer didn't pay enough");
+    return;
+  }
+
+  setShowCashModal(false);
+  processSale();
+}
 
   async function processSale() {
     if (cart.length === 0) { alert("Cart is empty"); return; }
@@ -312,13 +335,18 @@ export default function POS({ businessId }: { businessId?: string }) {
               <button onClick={clearCart} style={{ ...S.btn, color: "#ff4d4d", borderColor: "rgba(255,0,0,0.3)" }}>Clear</button>
             )}
             <button
-              onClick={() => { setPayment("cash"); processSale(); }}
+              onClick={() => {
+  setPayment("cash");
+  setAmountGiven("");
+  setShowCashModal(true); // 🆕 open modal instead of selling
+}}
               style={{ ...S.goldBtn, background: payment === "cash" ? "#d4af37" : "#333", color: payment === "cash" ? "#000" : "#d4af37" }}
             >
               Cash
             </button>
             <button
-              onClick={() => { setPayment("card"); processSale(); }}
+              onClick={() => { setPayment("card"); setPayment("cash"); // 🆕 make sure payment is correct
+processSale(); }}
               style={{ ...S.goldBtn, background: payment === "card" ? "#2980B9" : "#333", color: "#fff" }}
             >
               Card
@@ -346,13 +374,116 @@ export default function POS({ businessId }: { businessId?: string }) {
               <span>Total</span>
               <span style={{ color: "#d4af37" }}>R{lastReceipt.grandTotal.toFixed(2)}</span>
             </div>
-            <div style={{ textAlign: "center", marginTop: 4, color: "#888", fontSize: 13, marginBottom: 16 }}>
+            <div style={{ textAlign: "center", marginTop: 4, color: "#888", fontSize: 13, marginBottom: 12 }}>
               Paid by {lastReceipt.payment.toUpperCase()}
             </div>
+            {lastReceipt.payment === "cash" && (
+              <div style={{ marginBottom: 16 }}>
+                <p style={{ color: "#aaa", fontSize: 13, marginBottom: 8 }}>Amount given by customer:</p>
+                <input
+                  type="number"
+                  placeholder="e.g. 100"
+                  value={amountGiven}
+                  onChange={e => setAmountGiven(e.target.value)}
+                  style={{ width: "100%", padding: 10, background: "#1A1A1A", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 16, boxSizing: "border-box" as const, marginBottom: 10 }}
+                  autoFocus
+                />
+                {amountGiven && Number(amountGiven) >= lastReceipt.grandTotal && (
+                  <div style={{ background: "#0D2A0D", border: "1px solid #27AE60", borderRadius: 10, padding: 14, textAlign: "center" }}>
+                    <p style={{ color: "#aaa", fontSize: 12, marginBottom: 4 }}>CHANGE DUE</p>
+                    <p style={{ color: "#27AE60", fontSize: 32, fontWeight: 900 }}>
+                      R{(Number(amountGiven) - lastReceipt.grandTotal).toFixed(2)}
+                    </p>
+                  </div>
+                )}
+                {amountGiven && Number(amountGiven) < lastReceipt.grandTotal && (
+                  <div style={{ background: "#2A0D0D", border: "1px solid #ff4d4d", borderRadius: 10, padding: 14, textAlign: "center" }}>
+                    <p style={{ color: "#ff4d4d", fontSize: 14, fontWeight: 700 }}>
+                      Short by R{(lastReceipt.grandTotal - Number(amountGiven)).toFixed(2)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
             <button style={{ ...S.goldBtn, width: "100%" }} onClick={() => setShowReceipt(false)}>Done</button>
           </div>
         </div>
       )}
+
+
+
+
+
+{/* 🆕 CASH MODAL */}
+{showCashModal && (
+  <div style={S.overlay} onClick={() => setShowCashModal(false)}>
+    <div style={S.modal} onClick={e => e.stopPropagation()}>
+
+      <h2 style={{ color: "#d4af37", marginBottom: 10 }}>💰 Enter Amount</h2>
+
+      <p style={{ color: "#aaa", marginBottom: 10 }}>
+        Total: <b>R{cartTotal.toFixed(2)}</b>
+      </p>
+
+      <input
+        type="number"
+        placeholder="e.g. 100"
+        value={amountGiven}
+        onChange={e => setAmountGiven(e.target.value)}
+        style={{
+          width: "100%",
+          padding: 12,
+          background: "#1A1A1A",
+          border: "1px solid #333",
+          borderRadius: 8,
+          color: "#fff",
+          fontSize: 18,
+          marginBottom: 12
+        }}
+        autoFocus
+      />
+
+      {amountGiven && Number(amountGiven) >= cartTotal && (
+        <div style={{
+          background: "#0D2A0D",
+          border: "1px solid #27AE60",
+          borderRadius: 10,
+          padding: 14,
+          textAlign: "center",
+          marginBottom: 10
+        }}>
+          <p style={{ color: "#aaa", fontSize: 12 }}>CHANGE</p>
+          <p style={{ color: "#27AE60", fontSize: 30, fontWeight: 900 }}>
+            R{(Number(amountGiven) - cartTotal).toFixed(2)}
+          </p>
+        </div>
+      )}
+
+      {amountGiven && Number(amountGiven) < cartTotal && (
+        <div style={{
+          background: "#2A0D0D",
+          border: "1px solid #ff4d4d",
+          borderRadius: 10,
+          padding: 14,
+          textAlign: "center",
+          marginBottom: 10
+        }}>
+          <p style={{ color: "#ff4d4d", fontWeight: 700 }}>
+            Short by R{(cartTotal - Number(amountGiven)).toFixed(2)}
+          </p>
+        </div>
+      )}
+
+      <button
+        onClick={confirmCashSale}
+        style={{ ...S.goldBtn, width: "100%", marginTop: 10 }}
+      >
+        Confirm Sale
+      </button>
+
+    </div>
+  </div>
+)}
 
       {/* UNDO HISTORY MODAL */}
       {showUndo && (
