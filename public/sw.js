@@ -2,9 +2,16 @@ const CACHE_NAME = "tavern-pos-v2";
 const APP_SHELL = [
   "/",
   "/login",
+  "/pos",
   "/manifest.webmanifest",
   "/icons/icon.svg"
 ];
+
+const OFFLINE_RESPONSE = new Response("Offline", {
+  status: 503,
+  statusText: "Service Unavailable",
+  headers: { "Content-Type": "text/plain" },
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -52,7 +59,12 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(async () => {
           const cached = await caches.match(request);
-          return cached || caches.match("/login");
+          return (
+            cached ||
+            (await caches.match("/pos")) ||
+            (await caches.match("/login")) ||
+            OFFLINE_RESPONSE
+          );
         })
     );
     return;
@@ -68,7 +80,7 @@ self.addEventListener("fetch", (event) => {
           }
           return response;
         })
-        .catch(() => cached);
+        .catch(() => cached || OFFLINE_RESPONSE);
 
       return cached || network;
     })
