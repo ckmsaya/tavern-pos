@@ -99,15 +99,14 @@ export default function Dashboard() {
   async function load() {
     try {
       const { data: prod } = await supabase
-        .from<Product>("products")
-        .select("*")
-        .order("name", { ascending: true });
+        .from("products")
+        .select("*") as { data: Product[] | null };
 
       const { data: salesData } = await supabase
-        .from<Sale>("sales")
+        .from("sales")
         .select("*")
         .gte("created_at", new Date().toISOString().split("T")[0])
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false }) as { data: Sale[] | null };
       // ✅ No .limit() — fetch ALL of today's sales
 
       if (!prod || !salesData) return;
@@ -248,7 +247,7 @@ export default function Dashboard() {
     setReportLoading(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      const { data: allSales } = await supabase.from<Sale>("sales").select("*").gte("created_at", today);
+      const { data: allSales } = await supabase.from("sales").select("*").gte("created_at", today) as { data: Sale[] | null };
       const allSalesData: Sale[] = allSales ?? [];
 
       let r = 0;
