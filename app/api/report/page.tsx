@@ -14,16 +14,35 @@ import {
 
 ChartJS.register(ArcElement, CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
-export default function ReportPage(){
+type ReportProduct = {
+  id: number | string;
+  name: string;
+  opening_stock: number;
+  stock: number;
+  price: number;
+  cost_price: number;
+};
 
-  const [data,setData] = useState<any>(null);
+type ReportData = {
+  revenue: number;
+  cash: number;
+  card: number;
+  profit: number;
+  damage: number;
+  expired: number;
+  products: ReportProduct[];
+};
 
-  useEffect(()=>{
+export default function ReportPage() {
+  const [data, setData] = useState<ReportData | null>(null);
+
+  useEffect(() => {
     const stored = localStorage.getItem("reportData");
-    if(stored){
-      setData(JSON.parse(stored));
-    }
-  },[]);
+    if (!stored) return;
+
+    const parsed = JSON.parse(stored) as ReportData;
+    Promise.resolve().then(() => setData(parsed));
+  }, []);
 
   if(!data) return <div style={{padding:40,color:"#fff"}}>Loading report...</div>;
 
@@ -39,21 +58,21 @@ export default function ReportPage(){
   };
 
   // 📊 BAR
-  const productSales = products.map((p:any)=>{
-    const sold = (p.opening_stock ?? 0) - p.stock;
-    return { name: p.name, sold };
+  const productSales = products.map((product) => {
+    const sold = (product.opening_stock ?? 0) - product.stock;
+    return { name: product.name, sold };
   });
 
- const barData = {
-  labels: productSales.map((p:any) => p.name),
-  datasets: [
-    {
-      label: "Units Sold",
-      data: productSales.map((p:any) => p.sold),
-      backgroundColor: "#d4af37"
-    }
-  ]
-};
+  const barData = {
+    labels: productSales.map((product) => product.name),
+    datasets: [
+      {
+        label: "Units Sold",
+        data: productSales.map((product) => product.sold),
+        backgroundColor: "#d4af37"
+      }
+    ]
+  };
 
   return(
     <div style={{
@@ -154,19 +173,19 @@ export default function ReportPage(){
             </tr>
           </thead>
           <tbody>
-            {products.map((p:any)=>{
-              const sold = (p.opening_stock ?? 0) - p.stock;
-              const pr = sold * ((p.price ?? 0) - (p.cost_price ?? 0));
+            {products.map((product) => {
+              const sold = (product.opening_stock ?? 0) - product.stock;
+              const pr = sold * ((product.price ?? 0) - (product.cost_price ?? 0));
 
-              return(
-                <tr key={p.id} style={{borderBottom:"1px solid #222"}}>
-                  <td style={{padding:10}}>{p.name}</td>
+              return (
+                <tr key={product.id} style={{borderBottom:"1px solid #222"}}>
+                  <td style={{padding:10}}>{product.name}</td>
                   <td style={{textAlign:"center"}}>{sold}</td>
                   <td style={{textAlign:"center",color:"#00ff88"}}>
                     R{pr.toFixed(2)}
                   </td>
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>

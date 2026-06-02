@@ -1,34 +1,55 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import Twilio from "twilio";
+import {
+  clientKey,
+  getRequiredEnv,
+  jsonError,
+  parseJsonBody,
+  rateLimit,
+  rateLimitResponse,
+  RequestBodyError,
+} from "@/lib/api-security";
 
-export async function POST(req: Request){
+type WhatsAppBody = {
+  message?: unknown;
+};
 
-  try{
+export async function POST(req: NextRequest) {
+  const sendLimit = rateLimit(clientKey(req, "whatsapp"), {
+    limit: 20,
+    windowMs: 60 * 1000,
+  });
 
-    const { message } = await req.json();
+  if (sendLimit.limited) {
+    return rateLimitResponse(sendLimit.retryAfter);
+  }
+
+  try {
+    const { message } = await parseJsonBody<WhatsAppBody>(req, 4096);
+    const body = typeof message === "string" ? message.trim() : "";
+
+    if (!body || body.length > 1000) {
+      return jsonError("Message must be between 1 and 1000 characters");
+    }
 
     const client = Twilio(
-      process.env.TWILIO_ACCOUNT_SID!,
-      process.env.TWILIO_AUTH_TOKEN!
+      getRequiredEnv("TWILIO_ACCOUNT_SID"),
+      getRequiredEnv("TWILIO_AUTH_TOKEN")
     );
 
     await client.messages.create({
       from: "whatsapp:+14155238886",
       to: "whatsapp:+27646261102",
-      body: message
+      body,
     });
 
-    return NextResponse.json({ success:true });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof RequestBodyError) {
+      return jsonError(error.message, error.status);
+    }
 
-  }catch(err:any){
-
-    console.log("ERROR:",err.message);
-
-    return NextResponse.json(
-      { error: err.message },
-      { status:500 }
-    );
-
+    console.error("WhatsApp send failed:", error);
+    return jsonError("Unable to send WhatsApp alert", 500);
   }
-
 }

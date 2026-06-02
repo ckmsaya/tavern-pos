@@ -18,38 +18,64 @@ import { Line } from "react-chartjs-2";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend);
 
+type Product = {
+  id: number | string;
+  name: string;
+  category: string;
+  price: number;
+  cost_price: number;
+  opening_stock: number;
+  stock: number;
+};
+
+type Sale = {
+  id: number | string;
+  staff_name: string;
+  total: number;
+  payment_method: string;
+  created_at: string;
+};
+
+type NewProduct = {
+  barcode: string;
+  name: string;
+  cost_price: string;
+  price: string;
+  category: string;
+};
+
 export default function Dashboard() {
   const router = useRouter();
-  const [staffStats, setStaffStats]     = useState<any>({});
-  const [products, setProducts]         = useState<any[]>([]);
-  const [sales, setSales]               = useState<any[]>([]);
-  const [revenue, setRevenue]           = useState(0);
-  const [cash, setCash]                 = useState(0);
-  const [card, setCard]                 = useState(0);
-  const [profit, setProfit]             = useState(0);
-  const [alerted, setAlerted]           = useState<any>({});
+  const [staffStats, setStaffStats] = useState<Record<string, number>>({});
+  const [products, setProducts] = useState<Product[]>([]);
+  const [sales, setSales] = useState<Sale[]>([]);
+  const [revenue, setRevenue] = useState(0);
+  const [cash, setCash] = useState(0);
+  const [card, setCard] = useState(0);
+  const [profit, setProfit] = useState(0);
   const [reportLoading, setReportLoading] = useState(false);
-  const [addLoading, setAddLoading]     = useState(false);
+  const [addLoading, setAddLoading] = useState(false);
 
   // ── Modals ────────────────────────────────────────────────────────────────
-  const [showRestock, setShowRestock]   = useState(false);
-  const [restockProduct, setRestockProduct] = useState<any>(null);
-  const [restockQty, setRestockQty]     = useState("");
+  const [showRestock, setShowRestock] = useState(false);
+  const [restockProduct, setRestockProduct] = useState<Product | null>(null);
+  const [restockQty, setRestockQty] = useState("");
 
   const [showCashDrawer, setShowCashDrawer] = useState(false);
-  const [actualCash, setActualCash]     = useState("");
+  const [actualCash, setActualCash] = useState("");
 
-  const [showReset, setShowReset]       = useState(false);
-  const [resetPin, setResetPin]         = useState("");
-  const [resetError, setResetError]     = useState("");
+  const [showReset, setShowReset] = useState(false);
+  const [resetError, setResetError] = useState("");
 
-  const RESET_PIN = "1234"; // Change this to your owner PIN
-
-  const [newProduct, setNewProduct] = useState({
-    name: "", price: "", cost_price: "", category: "", barcode: ""
+  const [newProduct, setNewProduct] = useState<NewProduct>({
+    barcode: "",
+    name: "",
+    cost_price: "",
+    price: "",
+    category: ""
   });
 
-  const alertedRef = useRef<any>({});
+  const alertedRef = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
@@ -73,12 +99,12 @@ export default function Dashboard() {
   async function load() {
     try {
       const { data: prod } = await supabase
-        .from("products")
+        .from<Product>("products")
         .select("*")
         .order("name", { ascending: true });
 
       const { data: salesData } = await supabase
-        .from("sales")
+        .from<Sale>("sales")
         .select("*")
         .gte("created_at", new Date().toISOString().split("T")[0])
         .order("created_at", { ascending: false });
@@ -89,49 +115,49 @@ export default function Dashboard() {
       setProducts(prod);
       setSales(salesData);
 
-      // Staff stats
-      const stats: any = {};
-      salesData.forEach((s: any) => {
-        if (!stats[s.staff_name]) stats[s.staff_name] = 0;
-        stats[s.staff_name] += s.total;
+      const stats: Record<string, number> = {};
+      salesData.forEach((sale) => {
+        stats[sale.staff_name] = (stats[sale.staff_name] ?? 0) + sale.total;
       });
       setStaffStats(stats);
 
-      // Revenue
-      let r = 0, c = 0, ca = 0;
-      salesData.forEach((s: any) => {
-        r += s.total;
-        if (s.payment_method === "cash") c += s.total;
-        if (s.payment_method === "card") ca += s.total;
+      let r = 0;
+      let c = 0;
+      let ca = 0;
+      salesData.forEach((sale) => {
+        r += sale.total;
+        if (sale.payment_method === "cash") c += sale.total;
+        if (sale.payment_method === "card") ca += sale.total;
       });
-      setRevenue(r); setCash(c); setCard(ca);
+      setRevenue(r);
+      setCash(c);
+      setCard(ca);
 
-      // Profit
       let p = 0;
-      prod.forEach((pr: any) => {
-        const sold = (pr.opening_stock ?? 0) - pr.stock;
-        p += sold * ((pr.price ?? 0) - (pr.cost_price ?? 0));
+      prod.forEach((product) => {
+        const sold = (product.opening_stock ?? 0) - product.stock;
+        p += sold * ((product.price ?? 0) - (product.cost_price ?? 0));
       });
       setProfit(p);
 
-      // ✅ Low stock alert — <= 5 not === 5
-      const lowStock = prod.filter((p: any) => p.stock <= 5);
-      lowStock.forEach(async (p: any) => {
-        if (alertedRef.current[p.id]) return;
-        alertedRef.current[p.id] = true;
+      const lowStock = prod.filter((product) => product.stock <= 5);
+      lowStock.forEach(async (product) => {
+        const cacheKey = product.id.toString();
+        if (alertedRef.current[cacheKey]) return;
+        alertedRef.current[cacheKey] = true;
+
         try {
           await fetch("/api/whatsapp", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              message: `Tavern Alert\n${p.name} is running low\nStock left: ${p.stock}`
+              message: `Tavern Alert\n${product.name} is running low\nStock left: ${product.stock}`
             })
           });
         } catch (err) {
           console.log("Alert skipped:", err);
         }
       });
-
     } catch (err) {
       console.log("LOAD ERROR:", err);
     }
@@ -144,35 +170,32 @@ export default function Dashboard() {
     }
     setAddLoading(true);
 
-    const { data: existing } = await supabase
-      .from("products").select("*")
-      .eq("barcode", newProduct.barcode).maybeSingle();
+    try {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newProduct),
+      });
+      const result = await res.json();
 
-    if (existing) {
-      alert("Product with this barcode already exists");
-      setAddLoading(false); return;
+      if (!res.ok) {
+        alert(result.error ?? "Error adding product");
+        return;
+      }
+
+      alert("Product added!");
+      setNewProduct({ name: "", price: "", cost_price: "", category: "", barcode: "" });
+      load();
+    } catch (err) {
+      console.log("ADD PRODUCT ERROR:", err);
+      alert("Error adding product");
+    } finally {
+      setAddLoading(false);
     }
-
-    const { error } = await supabase.from("products").insert({
-      name:          newProduct.name,
-      category:      newProduct.category || "other",
-      price:         Number(newProduct.price),
-      cost_price:    Number(newProduct.cost_price),
-      stock:         0,
-      opening_stock: 0,
-      barcode:       newProduct.barcode
-    });
-
-    if (error) { alert("Error adding product"); console.log(error); setAddLoading(false); return; }
-
-    alert("Product added!");
-    setNewProduct({ name: "", price: "", cost_price: "", category: "", barcode: "" });
-    setAddLoading(false);
-    load();
   }
 
   // ── RESTOCK (modal) ───────────────────────────────────────────────────────
-  function openRestock(product: any) {
+  function openRestock(product: Product) {
     setRestockProduct(product);
     setRestockQty("");
     setShowRestock(true);
@@ -183,10 +206,17 @@ export default function Dashboard() {
     const qty = Number(restockQty);
     if (isNaN(qty) || qty <= 0) { alert("Enter a valid quantity"); return; }
 
-    await supabase.from("products").update({
-      stock:         restockProduct.stock + qty,
-      opening_stock: restockProduct.stock + qty
-    }).eq("id", restockProduct.id);
+    const res = await fetch(`/api/products/${restockProduct.id}/restock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quantity: qty }),
+    });
+
+    if (!res.ok) {
+      const result = await res.json();
+      alert(result.error ?? "Unable to restock product");
+      return;
+    }
 
     setShowRestock(false);
     setRestockProduct(null);
@@ -199,23 +229,16 @@ export default function Dashboard() {
 
   // ── RESET DAY (PIN modal) ─────────────────────────────────────────────────
   async function confirmReset() {
-    if (resetPin !== RESET_PIN) {
-      setResetError("Wrong PIN. Access denied.");
-      setResetPin("");
+    setResetError("");
+
+    const res = await fetch("/api/reset-day", { method: "POST" });
+    if (!res.ok) {
+      const result = await res.json();
+      setResetError(result.error ?? "Unable to reset day.");
       return;
     }
 
-    await supabase.from("sales").delete().neq("id", 0);
-
-    const { data: prods } = await supabase.from("products").select("*");
-    if (!prods) return;
-
-    for (const p of prods) {
-      await supabase.from("products").update({ opening_stock: p.stock }).eq("id", p.id);
-    }
-
     setShowReset(false);
-    setResetPin("");
     alert("System reset for new day");
     location.reload();
   }
@@ -225,31 +248,38 @@ export default function Dashboard() {
     setReportLoading(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      const { data: allSales } = await supabase.from("sales").select("*").gte("created_at", today);
-      const allSalesData = allSales ?? [];
+      const { data: allSales } = await supabase.from<Sale>("sales").select("*").gte("created_at", today);
+      const allSalesData: Sale[] = allSales ?? [];
 
-      let r = 0, c = 0, ca = 0;
-      allSalesData.forEach((s: any) => {
-        r += s.total;
-        if (s.payment_method === "cash") c += s.total;
-        if (s.payment_method === "card") ca += s.total;
+      let r = 0;
+      let c = 0;
+      let ca = 0;
+      allSalesData.forEach((sale) => {
+        r += sale.total;
+        if (sale.payment_method === "cash") c += sale.total;
+        if (sale.payment_method === "card") ca += sale.total;
       });
 
-      const staffMap: any = {};
-      allSalesData.forEach((s: any) => {
-        if (!staffMap[s.staff_name]) staffMap[s.staff_name] = 0;
-        staffMap[s.staff_name] += s.total;
+      const staffMap: Record<string, number> = {};
+      allSalesData.forEach((sale) => {
+        staffMap[sale.staff_name] = (staffMap[sale.staff_name] ?? 0) + sale.total;
       });
-      const staffArray = Object.entries(staffMap).map(([name, total]) => ({ name, total: total as number }));
+      const staffArray = Object.entries(staffMap).map(([name, total]) => ({ name, total }));
 
-      const productsWithSold = products.map((p: any) => ({
-        name: p.name, category: p.category, price: p.price,
-        cost_price: p.cost_price, opening_stock: p.opening_stock ?? 0,
-        stock: p.stock, sold: (p.opening_stock ?? 0) - p.stock
+      const productsWithSold = products.map((product) => ({
+        name: product.name,
+        category: product.category,
+        price: product.price,
+        cost_price: product.cost_price,
+        opening_stock: product.opening_stock ?? 0,
+        stock: product.stock,
+        sold: (product.opening_stock ?? 0) - product.stock,
       }));
 
       let totalProfit = 0;
-      productsWithSold.forEach((p: any) => { totalProfit += p.sold * (p.price - p.cost_price); });
+      productsWithSold.forEach((product) => {
+        totalProfit += product.sold * (product.price - product.cost_price);
+      });
 
       const payload = {
         date: today, revenue: r, cash: c, card: ca,
@@ -282,11 +312,25 @@ export default function Dashboard() {
 
   // ── CHART ─────────────────────────────────────────────────────────────────
   const chartData = {
-    labels: sales.map((s: any) => new Date(s.created_at).toLocaleTimeString()),
-    datasets: [{ label: "Sales", data: sales.map((s: any) => s.total), borderColor: "#d4af37", backgroundColor: "#d4af37", tension: 0.4 }]
+    labels: sales.map((sale) => new Date(sale.created_at).toLocaleTimeString()),
+    datasets: [
+      {
+        label: "Sales",
+        data: sales.map((sale) => sale.total),
+        borderColor: "#d4af37",
+        backgroundColor: "#d4af37",
+        tension: 0.4,
+      },
+    ],
   };
 
-  const lowStockUI = products.filter((p: any) => p.stock <= 5);
+  const lowStockUI = products.filter((product) => product.stock <= 5);
+  const formFields: Array<{ key: keyof NewProduct; placeholder: string }> = [
+    { key: "barcode", placeholder: "Scan or enter barcode" },
+    { key: "name", placeholder: "Product name" },
+    { key: "cost_price", placeholder: "Cost price" },
+    { key: "price", placeholder: "Selling price" },
+  ];
 
   // ── MODAL STYLE ───────────────────────────────────────────────────────────
   const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 };
@@ -302,17 +346,12 @@ export default function Dashboard() {
       <div style={{ marginBottom: 20, padding: 15, border: "1px solid #333", borderRadius: 10 }}>
         <h3 style={{ color: "#d4af37", marginBottom: 12 }}>Add New Product</h3>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {[
-            { key: "barcode",    placeholder: "Scan or enter barcode" },
-            { key: "name",       placeholder: "Product name" },
-            { key: "cost_price", placeholder: "Cost price" },
-            { key: "price",      placeholder: "Selling price" },
-          ].map(f => (
+          {formFields.map((field) => (
             <input
-              key={f.key}
-              placeholder={f.placeholder}
-              value={(newProduct as any)[f.key]}
-              onChange={e => setNewProduct({ ...newProduct, [f.key]: e.target.value })}
+              key={field.key}
+              placeholder={field.placeholder}
+              value={newProduct[field.key]}
+              onChange={(e) => setNewProduct({ ...newProduct, [field.key]: e.target.value })}
               style={{ padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
             />
           ))}
@@ -342,11 +381,13 @@ export default function Dashboard() {
       <div className={styles.cards}>
         <div className={styles.panel}>
           <h3 className={styles.panelTitle}>Staff Performance</h3>
-          {Object.entries(staffStats).sort((a: any, b: any) => b[1] - a[1]).map(([name, total]: any) => (
-            <div key={name} className={styles.staffRow}>
-              <span>{name}</span><span>R{total}</span>
-            </div>
-          ))}
+          {Object.entries(staffStats)
+            .sort(([, a], [, b]) => b - a)
+            .map(([name, total]) => (
+              <div key={name} className={styles.staffRow}>
+                <span>{name}</span><span>R{total}</span>
+              </div>
+            ))}
         </div>
         <div className={styles.card}><p className={styles.cardLabel}>Revenue</p><h2 className={styles.cardValue}>R{revenue}</h2></div>
         <div className={styles.card}><p className={styles.cardLabel}>Cash</p><h2 className={styles.cardValue}>R{cash}</h2></div>
@@ -360,7 +401,7 @@ export default function Dashboard() {
         <button className={styles.btn} onClick={closeDay} disabled={reportLoading} style={{ opacity: reportLoading ? 0.6 : 1, cursor: reportLoading ? "wait" : "pointer" }}>
           {reportLoading ? "Generating..." : "Close Day"}
         </button>
-        <button className={styles.btn} onClick={() => { setResetPin(""); setResetError(""); setShowReset(true); }}>Reset Day</button>
+        <button className={styles.btn} onClick={() => { setResetError(""); setShowReset(true); }}>Reset Day</button>
       </div>
 
       {/* ── CHART + LOW STOCK ────────────────────────────────────────────── */}
@@ -369,22 +410,23 @@ export default function Dashboard() {
           <h3 className={styles.panelTitle}>Sales Activity</h3>
           <div style={{ height: 180 }}><Line data={chartData} /></div>
           <div className={styles.activity}>
-            {sales.map((s: any) => (
-              <div key={s.id} className={styles.activityItem}>
-                <span className={styles.staff}>{s.staff_name}</span>{" sold — "}
-                <span className={styles.amount}>R{s.total}</span>
+            {sales.map((sale) => (
+              <div key={sale.id} className={styles.activityItem}>
+                <span className={styles.staff}>{sale.staff_name}</span>{" sold — "}
+                <span className={styles.amount}>R{sale.total}</span>
               </div>
             ))}
           </div>
         </div>
         <div className={styles.sidePanel}>
           <h3 className={styles.panelTitle}>Low Stock</h3>
-          {lowStockUI.length === 0
-            ? <p style={{ color: "#555", fontSize: 13 }}>All stock OK</p>
-            : lowStockUI.map((p: any) => (
-                <div key={p.id} className={styles.lowStock}>{p.name} — {p.stock} left</div>
-              ))
-          }
+          {lowStockUI.length === 0 ? (
+            <p style={{ color: "#555", fontSize: 13 }}>All stock OK</p>
+          ) : (
+            lowStockUI.map((product) => (
+              <div key={product.id} className={styles.lowStock}>{product.name} — {product.stock} left</div>
+            ))
+          )}
         </div>
       </div>
 
@@ -398,20 +440,20 @@ export default function Dashboard() {
             </tr>
           </thead>
           <tbody>
-            {products.map((p: any) => {
-              const sold = (p.opening_stock ?? 0) - p.stock;
-              const pr   = sold * ((p.price ?? 0) - (p.cost_price ?? 0));
+            {products.map((product) => {
+              const sold = (product.opening_stock ?? 0) - product.stock;
+              const pr = sold * ((product.price ?? 0) - (product.cost_price ?? 0));
               return (
-                <tr key={p.id}>
-                  <td>{p.name}</td>
-                  <td>{p.category}</td>
-                  <td>R{p.cost_price}</td>
-                  <td>R{p.price}</td>
-                  <td>{p.opening_stock}</td>
-                  <td style={{ color: p.stock <= 5 ? "#ff4d4d" : undefined, fontWeight: p.stock <= 5 ? 700 : 400 }}>{p.stock}</td>
+                <tr key={product.id}>
+                  <td>{product.name}</td>
+                  <td>{product.category}</td>
+                  <td>R{product.cost_price}</td>
+                  <td>R{product.price}</td>
+                  <td>{product.opening_stock}</td>
+                  <td style={{ color: product.stock <= 5 ? "#ff4d4d" : undefined, fontWeight: product.stock <= 5 ? 700 : 400 }}>{product.stock}</td>
                   <td>{sold}</td>
                   <td>R{pr.toFixed(2)}</td>
-                  <td><button className={styles.btn} onClick={() => openRestock(p)}>Restock</button></td>
+                  <td><button className={styles.btn} onClick={() => openRestock(product)}>Restock</button></td>
                 </tr>
               );
             })}
@@ -475,21 +517,12 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── RESET DAY MODAL (PIN protected) ──────────────────────────────── */}
+      {/* ── RESET DAY MODAL ──────────────────────────────────────────────── */}
       {showReset && (
         <div style={overlay}>
           <div style={modal}>
             <h3 style={{ color: "#ff4d4d", marginBottom: 8 }}>Reset Day</h3>
-            <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>This will delete all today's sales and reset opening stock. Enter owner PIN to continue.</p>
-            <input
-              style={inp}
-              placeholder="Enter owner PIN"
-              type="password"
-              value={resetPin}
-              onChange={e => { setResetPin(e.target.value); setResetError(""); }}
-              onKeyDown={e => e.key === "Enter" && confirmReset()}
-              autoFocus
-            />
+            <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>{"This will delete all today\'s sales and reset opening stock. Owner access is required."}</p>
             {resetError && <p style={{ color: "#ff4d4d", fontSize: 13, marginBottom: 12 }}>{resetError}</p>}
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={confirmReset} style={{ flex: 1, background: "#ff4d4d", color: "#fff", border: "none", padding: "12px 0", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>Reset</button>

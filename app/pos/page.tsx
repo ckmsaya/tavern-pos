@@ -28,9 +28,41 @@ interface SaleRecord {
   payment: string;
   staffName: string;
   time: string;
+  pending?: boolean;
 }
 
 const BUSINESS_ID: string | null = null;
+const PRODUCT_CACHE_KEY = "tavern-pos-products";
+const STAFF_CACHE_KEY = "tavern-pos-staff";
+const SALE_QUEUE_KEY = "tavern-pos-pending-sales";
+
+interface PendingSale {
+  id: string;
+  businessId: string | null;
+  payment: "cash" | "card";
+  staffName: string;
+  createdAt: string;
+  items: {
+    productId: number;
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
+}
+
+function readPendingSales(): PendingSale[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    return JSON.parse(localStorage.getItem(SALE_QUEUE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function writePendingSales(sales: PendingSale[]) {
+  localStorage.setItem(SALE_QUEUE_KEY, JSON.stringify(sales));
+}
 
 export default function POS({ businessId }: { businessId?: string }) {
   const router = useRouter();
@@ -38,6 +70,8 @@ export default function POS({ businessId }: { businessId?: string }) {
 // 🆕 cash modal control
 const [showCashModal, setShowCashModal] = useState(false);
   const [staffName, setStaffName]     = useState<string | null>(null);
+  const [isOnline, setIsOnline]       = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
   const [products, setProducts]       = useState<Product[]>([]);
   const [search, setSearch]           = useState("");
   const [category, setCategory]       = useState("all");
@@ -49,31 +83,89 @@ const [showCashModal, setShowCashModal] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
 const [amountGiven, setAmountGiven] = useState("");
 
-const receiptChange = lastReceipt && amountGiven ? Math.max(0, Number(amountGiven) - lastReceipt.grandTotal) : null;
   const [barcode, setBarcode]         = useState("");
   const barcodeRef                    = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    setIsOnline(navigator.onLine);
+    setPendingCount(readPendingSales().length);
     fetchStaffName();
     loadProducts();
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncPendingSales();
+      loadProducts();
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    if (navigator.onLine) {
+      syncPendingSales();
+    }
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchStaffName() {
-    const res = await fetch("/api/me");
-    if (!res.ok) {
-      router.replace("/login");
-      return;
-    }
+    try {
+      const res = await fetch("/api/me");
+      if (!res.ok) {
+        const cached = localStorage.getItem(STAFF_CACHE_KEY);
+        if (cached) {
+          const data = JSON.parse(cached);
+          if (data.name) setStaffName(data.name);
+          return;
+        }
 
-    const data = await res.json();
-    if (data.name) setStaffName(data.name);
+        router.replace("/login");
+        return;
+      }
+
+      const data = await res.json();
+      if (data.name) {
+        localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(data));
+        setStaffName(data.name);
+      }
+    } catch {
+      const cached = localStorage.getItem(STAFF_CACHE_KEY);
+      if (cached) {
+        const data = JSON.parse(cached);
+        if (data.name) setStaffName(data.name);
+        return;
+      }
+
+      router.replace("/login");
+    }
   }
 
   async function loadProducts() {
-    let query = supabase.from("products").select("*").order("name", { ascending: true });
-    if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
-    const { data } = await query;
-    if (data) setProducts(data);
+    try {
+      let query = supabase.from("products").select("*").order("name", { ascending: true });
+      if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      if (data) {
+        localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(data));
+        setProducts(data);
+      }
+    } catch (err) {
+      const cached = localStorage.getItem(PRODUCT_CACHE_KEY);
+      if (cached) {
+        setProducts(JSON.parse(cached));
+        return;
+      }
+
+      console.log("PRODUCT LOAD ERROR:", err);
+    }
   }
 
   function logout() {
@@ -85,14 +177,25 @@ const receiptChange = lastReceipt && amountGiven ? Math.max(0, Number(amountGive
   async function handleScan(code: string) {
     const clean = code.trim();
     if (!clean) return;
-    let query = supabase.from("products").select("*").eq("barcode", clean);
-    if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
-    const { data } = await query.maybeSingle();
-    if (data) {
+    const localProduct = products.find(product => product.barcode === clean);
+
+    if (localProduct) {
+      addToCart(localProduct);
+      setBarcode("");
+      setTimeout(() => barcodeRef.current?.focus(), 50);
+      return;
+    }
+
+    try {
+      let query = supabase.from("products").select("*").eq("barcode", clean);
+      if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
+      const { data } = await query.maybeSingle();
+      if (!data) throw new Error("Product not found");
+
       addToCart(data);
       setBarcode("");
       setTimeout(() => barcodeRef.current?.focus(), 50);
-    } else {
+    } catch {
       alert("Product not found for barcode: " + clean);
       setBarcode("");
       setTimeout(() => barcodeRef.current?.focus(), 50);
@@ -131,7 +234,6 @@ const receiptChange = lastReceipt && amountGiven ? Math.max(0, Number(amountGive
   function clearCart() { setCart([]); }
 
   const cartTotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
-const change = amountGiven ? Math.max(0, Number(amountGiven) - cartTotal) : null;
 
   // 🆕 confirm cash sale
 function confirmCashSale() {
@@ -147,11 +249,67 @@ function confirmCashSale() {
     return;
   }
 
-  setShowCashModal(false);
-  processSale();
+    setShowCashModal(false);
+  processSale("cash");
 }
 
-  async function processSale() {
+  function reduceLocalStock(items: PendingSale["items"]) {
+    setProducts(prev => {
+      const next = prev.map(product => {
+        const sold = items.find(item => item.productId === product.id);
+        return sold ? { ...product, stock: product.stock - sold.quantity } : product;
+      });
+      localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function queueSale(sale: PendingSale) {
+    const pending = [...readPendingSales(), sale];
+    writePendingSales(pending);
+    setPendingCount(pending.length);
+  }
+
+  async function syncPendingSales() {
+    if (!navigator.onLine) return;
+
+    const pending = readPendingSales();
+    if (!pending.length) {
+      setPendingCount(0);
+      return;
+    }
+
+    const remaining: PendingSale[] = [];
+
+    for (const sale of pending) {
+      try {
+        const res = await fetch("/api/sales", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessId: sale.businessId,
+            payment: sale.payment,
+            items: sale.items,
+          }),
+        });
+
+        if (!res.ok) {
+          remaining.push(sale);
+        }
+      } catch {
+        remaining.push(sale);
+      }
+    }
+
+    writePendingSales(remaining);
+    setPendingCount(remaining.length);
+
+    if (remaining.length === 0) {
+      loadProducts();
+    }
+  }
+
+  async function processSale(selectedPayment: "cash" | "card" = payment) {
     if (cart.length === 0) { alert("Cart is empty"); return; }
     if (!staffName) return;
 
@@ -164,23 +322,14 @@ function confirmCashSale() {
 
     const saleIds: number[] = [];
     const receiptItems: { name: string; quantity: number; total: number }[] = [];
+    const saleItems = cart.map(item => ({
+      productId: item.product.id,
+      name: item.product.name,
+      quantity: item.quantity,
+      price: item.product.price,
+    }));
 
     for (const item of cart) {
-      const { data: sale, error } = await supabase.from("sales").insert({
-        ...(BIZ_ID ? { business_id: BIZ_ID } : {}),
-        payment_method: payment,
-        total:          item.product.price * item.quantity,
-        staff_name:     staffName,
-        product_id:     item.product.id,
-      }).select().single();
-
-      if (error) { alert("Sale failed: " + error.message); return; }
-      saleIds.push(sale.id);
-
-      await supabase.from("products")
-        .update({ stock: item.product.stock - item.quantity })
-        .eq("id", item.product.id);
-
       receiptItems.push({
         name:     item.product.name,
         quantity: item.quantity,
@@ -188,23 +337,78 @@ function confirmCashSale() {
       });
     }
 
+    const pendingSale: PendingSale = {
+      id: crypto.randomUUID(),
+      businessId: BIZ_ID,
+      payment: selectedPayment,
+      staffName,
+      createdAt: new Date().toISOString(),
+      items: saleItems,
+    };
+
+    let pending = !navigator.onLine;
+
+    if (!pending) {
+      try {
+        const res = await fetch("/api/sales", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            businessId: BIZ_ID,
+            payment: selectedPayment,
+            items: saleItems,
+          }),
+        });
+
+        if (!res.ok) {
+          const result = await res.json();
+          if (res.status >= 500 || res.status === 408) {
+            pending = true;
+          } else {
+            alert(result.error ?? "Sale failed");
+            return;
+          }
+        } else {
+          const result = await res.json();
+          saleIds.push(...(result.saleIds ?? []));
+        }
+      } catch {
+        pending = true;
+      }
+    }
+
+    if (pending) {
+      queueSale(pendingSale);
+      saleIds.push(-Date.now());
+    }
+
+    reduceLocalStock(saleItems);
+
     const receipt: SaleRecord = {
       saleIds,
       items:      receiptItems,
       grandTotal: cartTotal,
-      payment,
+      payment: selectedPayment,
       staffName,
       time:       new Date().toLocaleTimeString(),
+      pending,
     };
 
     setUndoHistory(prev => [receipt, ...prev].slice(0, 10));
     setLastReceipt(receipt);
     setShowReceipt(true);
     setCart([]);
-    loadProducts();
+    if (!pending) {
+      loadProducts();
+    }
   }
 
   async function undoSale(record: SaleRecord) {
+    if (record.pending) {
+      alert("This sale is still waiting to sync. It cannot be undone yet.");
+      return;
+    }
+
     const confirm = window.confirm(`Undo sale of R${record.grandTotal} from ${record.time}?`);
     if (!confirm) return;
 
@@ -258,6 +462,9 @@ function confirmCashSale() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <h1 style={S.title}>POS System</h1>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <span style={{ color: isOnline ? "#27AE60" : "#ff4d4d", fontSize: 12 }}>
+            {isOnline ? "Online" : "Offline"}{pendingCount ? ` • ${pendingCount} pending` : ""}
+          </span>
           <span style={{ color: "#aaa", fontSize: 13 }}>👤 {staffName}</span>
           <button style={S.btn} onClick={() => setShowUndo(true)}>
             Undo History ({undoHistory.length})
@@ -345,8 +552,7 @@ function confirmCashSale() {
               Cash
             </button>
             <button
-              onClick={() => { setPayment("card"); setPayment("cash"); // 🆕 make sure payment is correct
-processSale(); }}
+              onClick={() => { setPayment("card"); processSale("card"); }}
               style={{ ...S.goldBtn, background: payment === "card" ? "#2980B9" : "#333", color: "#fff" }}
             >
               Card
@@ -375,7 +581,7 @@ processSale(); }}
               <span style={{ color: "#d4af37" }}>R{lastReceipt.grandTotal.toFixed(2)}</span>
             </div>
             <div style={{ textAlign: "center", marginTop: 4, color: "#888", fontSize: 13, marginBottom: 12 }}>
-              Paid by {lastReceipt.payment.toUpperCase()}
+              Paid by {lastReceipt.payment.toUpperCase()}{lastReceipt.pending ? " • queued for sync" : ""}
             </div>
             {lastReceipt.payment === "cash" && (
               <div style={{ marginBottom: 16 }}>
