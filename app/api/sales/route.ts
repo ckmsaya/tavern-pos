@@ -35,6 +35,47 @@ function parseSaleNumber(value: unknown) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
+export async function GET(req: NextRequest) {
+  const limit = rateLimit(clientKey(req, "sales-list"), {
+    limit: 120,
+    windowMs: 60 * 1000,
+  });
+
+  if (limit.limited) {
+    return rateLimitResponse(limit.retryAfter);
+  }
+
+  try {
+    requireStaffSession(req);
+
+    const { searchParams } = new URL(req.url);
+    const businessId = searchParams.get("businessId");
+    const since = searchParams.get("since");
+
+    const supabase = createServiceSupabaseClient();
+    let query = supabase.from("sales").select("*").order("created_at", { ascending: false });
+
+    if (businessId) query = query.eq("business_id", businessId);
+    if (since) query = query.gte("created_at", since);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Sales list failed:", error);
+      return jsonError("Unable to load sales", 500);
+    }
+
+    return NextResponse.json({ sales: data ?? [] });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
+
+    console.error("Sales list failed:", error);
+    return jsonError("Unable to load sales", 500);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const limit = rateLimit(clientKey(req, "sales-create"), {
     limit: 120,
@@ -116,6 +157,7 @@ export async function POST(req: NextRequest) {
           ...(businessId ? { business_id: businessId } : {}),
           payment_method: payment,
           total: item.price * item.quantity,
+          quantity: item.quantity,
           staff_name: staff.name,
           product_id: item.productId,
         })

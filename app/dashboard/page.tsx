@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabase";
 import styles from "./dashboard.module.css";
 
 import {
@@ -98,15 +97,16 @@ export default function Dashboard() {
   // ── LOAD DATA ─────────────────────────────────────────────────────────────
   async function load() {
     try {
-      const { data: prod } = await supabase
-        .from("products")
-        .select("*") as { data: Product[] | null };
+      const today = new Date().toISOString().split("T")[0];
+      const [prodRes, salesRes] = await Promise.all([
+        fetch("/api/products"),
+        fetch(`/api/sales?since=${today}`),
+      ]);
 
-      const { data: salesData } = await supabase
-        .from("sales")
-        .select("*")
-        .gte("created_at", new Date().toISOString().split("T")[0])
-        .order("created_at", { ascending: false }) as { data: Sale[] | null };
+      if (!prodRes.ok || !salesRes.ok) return;
+
+      const { products: prod } = await prodRes.json() as { products: Product[] | null };
+      const { sales: salesData } = await salesRes.json() as { sales: Sale[] | null };
       // ✅ No .limit() — fetch ALL of today's sales
 
       if (!prod || !salesData) return;
@@ -247,7 +247,8 @@ export default function Dashboard() {
     setReportLoading(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      const { data: allSales } = await supabase.from("sales").select("*").gte("created_at", today) as { data: Sale[] | null };
+      const salesRes = await fetch(`/api/sales?since=${today}`);
+      const { sales: allSales } = await salesRes.json() as { sales: Sale[] | null };
       const allSalesData: Sale[] = allSales ?? [];
 
       let r = 0;

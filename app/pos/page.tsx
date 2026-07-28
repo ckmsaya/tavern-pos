@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../lib/supabase";
 
 interface Product {
   id: number;
@@ -147,11 +146,12 @@ const [amountGiven, setAmountGiven] = useState("");
 
   async function loadProducts() {
     try {
-      let query = supabase.from("products").select("*").order("name", { ascending: true });
-      if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
-      const { data, error } = await query;
+      const params = new URLSearchParams();
+      if (BIZ_ID) params.set("businessId", BIZ_ID);
 
-      if (error) throw error;
+      const res = await fetch(`/api/products?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to load products");
+      const { products: data } = await res.json();
 
       if (data) {
         localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(data));
@@ -187,12 +187,15 @@ const [amountGiven, setAmountGiven] = useState("");
     }
 
     try {
-      let query = supabase.from("products").select("*").eq("barcode", clean);
-      if (BIZ_ID) query = query.eq("business_id", BIZ_ID);
-      const { data } = await query.maybeSingle();
-      if (!data) throw new Error("Product not found");
+      const params = new URLSearchParams({ barcode: clean });
+      if (BIZ_ID) params.set("businessId", BIZ_ID);
 
-      addToCart(data);
+      const res = await fetch(`/api/products?${params.toString()}`);
+      const { products: data } = await res.json();
+      const found = data?.[0];
+      if (!found) throw new Error("Product not found");
+
+      addToCart(found);
       setBarcode("");
       setTimeout(() => barcodeRef.current?.focus(), 50);
     } catch {
@@ -412,17 +415,21 @@ function confirmCashSale() {
     const confirm = window.confirm(`Undo sale of R${record.grandTotal} from ${record.time}?`);
     if (!confirm) return;
 
-    for (const id of record.saleIds) {
-      await supabase.from("sales").delete().eq("id", id);
-    }
+    try {
+      const res = await fetch("/api/sales/undo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ saleIds: record.saleIds }),
+      });
 
-    for (const item of record.items) {
-      const prod = products.find(p => p.name === item.name);
-      if (prod) {
-        await supabase.from("products")
-          .update({ stock: prod.stock + item.quantity })
-          .eq("id", prod.id);
+      if (!res.ok) {
+        const result = await res.json();
+        alert(result.error ?? "Unable to undo sale");
+        return;
       }
+    } catch {
+      alert("Unable to undo sale");
+      return;
     }
 
     setUndoHistory(prev => prev.filter(r => r.saleIds[0] !== record.saleIds[0]));

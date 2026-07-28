@@ -12,6 +12,7 @@ import {
 
 type LoginBody = {
   pin?: unknown;
+  businessId?: unknown;
 };
 
 export async function POST(req: NextRequest) {
@@ -25,8 +26,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { pin } = await parseJsonBody<LoginBody>(req, 1024);
+    const { pin, businessId } = await parseJsonBody<LoginBody>(req, 1024);
     const normalizedPin = typeof pin === "string" ? pin.trim() : "";
+    const normalizedBusinessId = typeof businessId === "string" && businessId.trim()
+      ? businessId.trim()
+      : null;
 
     if (!/^\d{4,12}$/.test(normalizedPin)) {
       return jsonError("Invalid PIN", 401);
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
     );
 
     const { data: staff, error } = await supabase
-      .rpc("verify_staff_pin", { input_pin: normalizedPin });
+      .rpc("verify_staff_pin", { input_pin: normalizedPin, input_business_id: normalizedBusinessId });
 
     if (error || !staff || staff.length === 0) {
       return jsonError("Invalid PIN", 401);

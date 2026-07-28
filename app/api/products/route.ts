@@ -7,6 +7,7 @@ import {
   rateLimit,
   rateLimitResponse,
   requireOwner,
+  requireStaffSession,
   RequestBodyError,
 } from "@/lib/api-security";
 import { createServiceSupabaseClient } from "@/lib/server-supabase";
@@ -28,6 +29,47 @@ function text(value: unknown, max = 120) {
 function money(value: unknown) {
   const amount = Number(value);
   return Number.isFinite(amount) && amount >= 0 ? amount : null;
+}
+
+export async function GET(req: NextRequest) {
+  const limit = rateLimit(clientKey(req, "product-list"), {
+    limit: 120,
+    windowMs: 60 * 1000,
+  });
+
+  if (limit.limited) {
+    return rateLimitResponse(limit.retryAfter);
+  }
+
+  try {
+    requireStaffSession(req);
+
+    const { searchParams } = new URL(req.url);
+    const businessId = searchParams.get("businessId");
+    const barcode = searchParams.get("barcode");
+
+    const supabase = createServiceSupabaseClient();
+    let query = supabase.from("products").select("*").order("name", { ascending: true });
+
+    if (businessId) query = query.eq("business_id", businessId);
+    if (barcode) query = query.eq("barcode", barcode);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Product list failed:", error);
+      return jsonError("Unable to load products", 500);
+    }
+
+    return NextResponse.json({ products: data ?? [] });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
+
+    console.error("Product list failed:", error);
+    return jsonError("Unable to load products", 500);
+  }
 }
 
 export async function POST(req: NextRequest) {
