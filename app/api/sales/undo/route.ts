@@ -15,6 +15,8 @@ type UndoBody = {
   saleIds?: unknown;
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(req: NextRequest) {
   const limit = rateLimit(clientKey(req, "sales-undo"), {
     limit: 30,
@@ -30,7 +32,7 @@ export async function POST(req: NextRequest) {
 
     const body = await parseJsonBody<UndoBody>(req, 4096);
     const saleIds = Array.isArray(body.saleIds)
-      ? body.saleIds.filter((id): id is number => Number.isInteger(id) && id > 0).slice(0, 50)
+      ? body.saleIds.filter((id): id is string => typeof id === "string" && UUID_RE.test(id)).slice(0, 50)
       : [];
 
     if (!saleIds.length) {

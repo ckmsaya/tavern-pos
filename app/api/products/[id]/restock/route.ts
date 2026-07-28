@@ -15,6 +15,8 @@ type RestockBody = {
   quantity?: unknown;
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -32,11 +34,11 @@ export async function POST(
     requireOwner(req);
 
     const { id } = await context.params;
-    const productId = Number(id);
+    const productId = id.trim();
     const { quantity } = await parseJsonBody<RestockBody>(req, 1024);
     const qty = Number(quantity);
 
-    if (!Number.isInteger(productId) || productId <= 0) {
+    if (!UUID_RE.test(productId)) {
       return jsonError("Invalid product id");
     }
 

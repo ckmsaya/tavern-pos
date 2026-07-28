@@ -3,9 +3,16 @@
 
 create extension if not exists pgcrypto;
 
+-- NOTE: products/sales/staff already existed in this project before this
+-- file did, with a shape that differs slightly from a clean install (no
+-- business_id, staff.hashed_pin instead of pin_hash, sales has no
+-- quantity). "create table if not exists" is a no-op against an existing
+-- table — it does NOT add missing columns — so those are added below via
+-- explicit "alter table ... add column if not exists" instead, which is
+-- safe to run against both a fresh install and this existing database.
+
 create table if not exists products (
   id bigint generated always as identity primary key,
-  business_id uuid,
   name text not null,
   category text not null default 'other',
   price numeric not null default 0,
@@ -15,29 +22,30 @@ create table if not exists products (
   barcode text unique,
   created_at timestamptz not null default now()
 );
+alter table products add column if not exists business_id uuid;
 
 create table if not exists sales (
   id bigint generated always as identity primary key,
-  business_id uuid,
   product_id bigint references products(id) on delete set null,
-  quantity integer not null default 1,
   total numeric not null,
   payment_method text not null check (payment_method in ('cash', 'card')),
   staff_name text not null,
   created_at timestamptz not null default now()
 );
+alter table sales add column if not exists business_id uuid;
+alter table sales add column if not exists quantity integer not null default 1;
 
 create table if not exists staff (
   id bigint generated always as identity primary key,
-  business_id uuid,
   name text not null,
-  role text not null check (role in ('owner', 'staff')),
-  pin_hash text not null,
+  role text not null,
+  hashed_pin text not null,
   created_at timestamptz not null default now()
 );
+alter table staff add column if not exists business_id uuid;
 
 -- Helper to hash a PIN when creating staff, e.g.:
--- insert into staff (name, role, pin_hash) values ('Thabo', 'staff', crypt('1234', gen_salt('bf')));
+-- insert into staff (name, role, hashed_pin) values ('Thabo', 'staff', crypt('1234', gen_salt('bf')));
 
 create or replace function verify_staff_pin(input_pin text, input_business_id uuid default null)
 returns table (name text, role text)
@@ -49,7 +57,7 @@ begin
   return query
   select s.name, s.role
   from staff s
-  where s.pin_hash = crypt(input_pin, s.pin_hash)
+  where s.hashed_pin = extensions.crypt(input_pin, s.hashed_pin)
     and (input_business_id is null or s.business_id = input_business_id)
   limit 1;
 end;

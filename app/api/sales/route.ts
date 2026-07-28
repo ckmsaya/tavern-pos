@@ -35,6 +35,14 @@ function parseSaleNumber(value: unknown) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseProductId(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return UUID_RE.test(trimmed) ? trimmed : null;
+}
+
 export async function GET(req: NextRequest) {
   const limit = rateLimit(clientKey(req, "sales-list"), {
     limit: 120,
@@ -93,7 +101,7 @@ export async function POST(req: NextRequest) {
     const items = rawItems.map((item) => {
       const saleItem = item as SaleItem;
       return {
-        productId: parseSaleNumber(saleItem.productId),
+        productId: parseProductId(saleItem.productId),
         quantity: parseSaleNumber(saleItem.quantity),
         price: parseSaleNumber(saleItem.price),
       };
@@ -108,8 +116,6 @@ export async function POST(req: NextRequest) {
         item.productId === null ||
         item.quantity === null ||
         item.price === null ||
-        !Number.isInteger(item.productId) ||
-        item.productId <= 0 ||
         !Number.isInteger(item.quantity) ||
         item.quantity <= 0 ||
         item.quantity > 1000 ||
@@ -123,7 +129,7 @@ export async function POST(req: NextRequest) {
     }
 
     const validItems = items as Array<{
-      productId: number;
+      productId: string;
       quantity: number;
       price: number;
     }>;
@@ -133,7 +139,7 @@ export async function POST(req: NextRequest) {
       : null;
     const payment = validPayment(body.payment);
     const supabase = createServiceSupabaseClient();
-    const saleIds: number[] = [];
+    const saleIds: string[] = [];
 
     for (const item of validItems) {
       const { data: product, error: productError } = await supabase

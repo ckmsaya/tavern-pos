@@ -4,7 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface Product {
-  id: number;
+  id: string;
   name: string;
   price: number;
   cost_price: number;
@@ -21,7 +21,7 @@ interface CartItem {
 }
 
 interface SaleRecord {
-  saleIds: number[];
+  saleIds: string[];
   items: { name: string; quantity: number; total: number }[];
   grandTotal: number;
   payment: string;
@@ -42,7 +42,7 @@ interface PendingSale {
   staffName: string;
   createdAt: string;
   items: {
-    productId: number;
+    productId: string;
     name: string;
     quantity: number;
     price: number;
@@ -221,7 +221,7 @@ const [amountGiven, setAmountGiven] = useState("");
     });
   }
 
-  function updateQty(productId: number, delta: number) {
+  function updateQty(productId: string, delta: number) {
     setCart(prev => prev
       .map(i => i.product.id === productId
         ? { ...i, quantity: Math.max(0, i.quantity + delta) }
@@ -230,7 +230,7 @@ const [amountGiven, setAmountGiven] = useState("");
     );
   }
 
-  function removeFromCart(productId: number) {
+  function removeFromCart(productId: string) {
     setCart(prev => prev.filter(i => i.product.id !== productId));
   }
 
@@ -323,7 +323,7 @@ function confirmCashSale() {
       }
     }
 
-    const saleIds: number[] = [];
+    const saleIds: string[] = [];
     const receiptItems: { name: string; quantity: number; total: number }[] = [];
     const saleItems = cart.map(item => ({
       productId: item.product.id,
@@ -382,7 +382,7 @@ function confirmCashSale() {
 
     if (pending) {
       queueSale(pendingSale);
-      saleIds.push(-Date.now());
+      saleIds.push(`pending-${pendingSale.id}`);
     }
 
     reduceLocalStock(saleItems);
