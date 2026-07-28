@@ -27,6 +27,14 @@ function validPayment(value: unknown) {
   return value === "card" ? "card" : "cash";
 }
 
+function parseSaleNumber(value: unknown) {
+  if (value === null || value === undefined) return null;
+
+  const normalized = typeof value === "string" ? value.trim() : value;
+  const numberValue = Number(normalized);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
 export async function POST(req: NextRequest) {
   const limit = rateLimit(clientKey(req, "sales-create"), {
     limit: 120,
@@ -44,9 +52,9 @@ export async function POST(req: NextRequest) {
     const items = rawItems.map((item) => {
       const saleItem = item as SaleItem;
       return {
-        productId: Number(saleItem.productId),
-        quantity: Number(saleItem.quantity),
-        price: Number(saleItem.price),
+        productId: parseSaleNumber(saleItem.productId),
+        quantity: parseSaleNumber(saleItem.quantity),
+        price: parseSaleNumber(saleItem.price),
       };
     });
 
@@ -54,20 +62,30 @@ export async function POST(req: NextRequest) {
       return jsonError("Sale must include at least one item");
     }
 
-    if (
-      items.some(
-        (item) =>
-          !Number.isInteger(item.productId) ||
-          item.productId <= 0 ||
-          !Number.isInteger(item.quantity) ||
-          item.quantity <= 0 ||
-          item.quantity > 1000 ||
-          !Number.isFinite(item.price) ||
-          item.price < 0
-      )
-    ) {
+    const invalidItem = items.find(
+      (item) =>
+        item.productId === null ||
+        item.quantity === null ||
+        item.price === null ||
+        !Number.isInteger(item.productId) ||
+        item.productId <= 0 ||
+        !Number.isInteger(item.quantity) ||
+        item.quantity <= 0 ||
+        item.quantity > 1000 ||
+        !Number.isFinite(item.price) ||
+        item.price < 0
+    );
+
+    if (invalidItem) {
+      console.error("Invalid sale item detected:", invalidItem);
       return jsonError("Sale contains invalid items");
     }
+
+    const validItems = items as Array<{
+      productId: number;
+      quantity: number;
+      price: number;
+    }>;
 
     const businessId = typeof body.businessId === "string" && body.businessId.trim()
       ? body.businessId.trim()
@@ -76,7 +94,7 @@ export async function POST(req: NextRequest) {
     const supabase = createServiceSupabaseClient();
     const saleIds: number[] = [];
 
-    for (const item of items) {
+    for (const item of validItems) {
       const { data: product, error: productError } = await supabase
         .from("products")
         .select("id, stock")
