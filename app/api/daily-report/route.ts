@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import PDFDocument from "pdfkit";
 import {
+  AuthError,
   clientKey,
   jsonError,
   parseJsonBody,
   rateLimit,
   rateLimitResponse,
+  requireOwner,
   RequestBodyError,
 } from "@/lib/api-security";
 
@@ -447,6 +449,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    requireOwner(req);
+
     const data = validateReportData(await parseJsonBody<unknown>(req, 256 * 1024));
     const pdf  = await buildPDF(data);
     return new NextResponse(new Uint8Array(pdf), {
@@ -458,7 +462,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    if (error instanceof RequestBodyError) {
+    if (error instanceof AuthError || error instanceof RequestBodyError) {
       return jsonError(error.message, error.status);
     }
 

@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import Twilio from "twilio";
 import {
+  AuthError,
   clientKey,
   getRequiredEnv,
   jsonError,
   parseJsonBody,
   rateLimit,
   rateLimitResponse,
+  requireOwner,
   RequestBodyError,
 } from "@/lib/api-security";
 
@@ -25,6 +27,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    requireOwner(req);
+
     const { message } = await parseJsonBody<WhatsAppBody>(req, 4096);
     const body = typeof message === "string" ? message.trim() : "";
 
@@ -39,13 +43,13 @@ export async function POST(req: NextRequest) {
 
     await client.messages.create({
       from: "whatsapp:+14155238886",
-      to: "whatsapp:+27646261102",
+      to: "whatsapp:+27765601400",
       body,
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (error instanceof RequestBodyError) {
+    if (error instanceof AuthError || error instanceof RequestBodyError) {
       return jsonError(error.message, error.status);
     }
 
