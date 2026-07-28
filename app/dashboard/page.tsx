@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import styles from "./dashboard.module.css";
 
@@ -74,8 +74,6 @@ export default function Dashboard() {
     category: ""
   });
 
-  const alertedRef = useRef<Record<string, boolean>>({});
-
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
 
@@ -138,25 +136,6 @@ export default function Dashboard() {
         p += sold * ((product.price ?? 0) - (product.cost_price ?? 0));
       });
       setProfit(p);
-
-      const lowStock = prod.filter((product) => product.stock <= 5);
-      lowStock.forEach(async (product) => {
-        const cacheKey = product.id.toString();
-        if (alertedRef.current[cacheKey]) return;
-        alertedRef.current[cacheKey] = true;
-
-        try {
-          await fetch("/api/whatsapp", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              message: `Tavern Alert\n${product.name} is running low\nStock left: ${product.stock}`
-            })
-          });
-        } catch (err) {
-          console.log("Alert skipped:", err);
-        }
-      });
     } catch (err) {
       console.log("LOAD ERROR:", err);
     }

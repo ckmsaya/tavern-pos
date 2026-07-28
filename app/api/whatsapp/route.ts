@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Twilio from "twilio";
 import {
   AuthError,
   clientKey,
-  getRequiredEnv,
   jsonError,
   parseJsonBody,
   rateLimit,
@@ -11,6 +9,7 @@ import {
   requireOwner,
   RequestBodyError,
 } from "@/lib/api-security";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
 type WhatsAppBody = {
   message?: unknown;
@@ -36,16 +35,7 @@ export async function POST(req: NextRequest) {
       return jsonError("Message must be between 1 and 1000 characters");
     }
 
-    const client = Twilio(
-      getRequiredEnv("TWILIO_ACCOUNT_SID"),
-      getRequiredEnv("TWILIO_AUTH_TOKEN")
-    );
-
-    await client.messages.create({
-      from: "whatsapp:+14155238886",
-      to: "whatsapp:+27765601400",
-      body,
-    });
+    await sendWhatsAppMessage({ body });
 
     return NextResponse.json({ success: true });
   } catch (error) {
