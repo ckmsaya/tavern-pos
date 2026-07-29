@@ -9,7 +9,7 @@ import {
   requireOwner,
   RequestBodyError,
 } from "@/lib/api-security";
-import { buildDailyReportPDF, ReportData, ReportProduct, ReportStaff, ReportSale } from "@/lib/daily-report-pdf";
+import { buildDailyReportPDF, ReportData, ReportProduct, ReportStaff, ReportSale, ReportStaffSession } from "@/lib/daily-report-pdf";
 
 function n(v: unknown): number { return Number(v) || 0; }
 
@@ -26,6 +26,7 @@ function validateReportData(value: unknown): ReportData {
   const products = Array.isArray(data.products) ? data.products.slice(0, 500) : [];
   const staff = Array.isArray(data.staff) ? data.staff.slice(0, 100) : [];
   const sales = Array.isArray(data.sales) ? data.sales.slice(0, 1000) : [];
+  const staffSessions = Array.isArray(data.staffSessions) ? data.staffSessions.slice(0, 200) : [];
 
   return {
     date: /^\d{4}-\d{2}-\d{2}$/.test(text(data.date, 10))
@@ -58,6 +59,17 @@ function validateReportData(value: unknown): ReportData {
         total: n(sale.total),
         payment_method: text(sale.payment_method, 20),
         staff_name: text(sale.staff_name),
+      };
+    }),
+    staffSessions: staffSessions.map((item) => {
+      const session = item as Partial<ReportStaffSession>;
+      return {
+        staffName: text(session.staffName),
+        loginAt: text(session.loginAt, 40),
+        logoutAt: session.logoutAt ? text(session.logoutAt, 40) : null,
+        hoursWorked: n(session.hoursWorked),
+        itemsSold: n(session.itemsSold),
+        moneyMade: n(session.moneyMade),
       };
     }),
   };

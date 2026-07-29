@@ -12,7 +12,7 @@ import {
 import { createServiceSupabaseClient } from "@/lib/server-supabase";
 
 type RestockBody = {
-  quantity?: unknown;
+  delta?: unknown;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,15 +35,15 @@ export async function POST(
 
     const { id } = await context.params;
     const productId = id.trim();
-    const { quantity } = await parseJsonBody<RestockBody>(req, 1024);
-    const qty = Number(quantity);
+    const { delta } = await parseJsonBody<RestockBody>(req, 1024);
+    const adjustment = Number(delta);
 
     if (!UUID_RE.test(productId)) {
       return jsonError("Invalid product id");
     }
 
-    if (!Number.isInteger(qty) || qty <= 0 || qty > 100000) {
-      return jsonError("Enter a valid restock quantity");
+    if (!Number.isInteger(adjustment) || adjustment === 0 || Math.abs(adjustment) > 100000) {
+      return jsonError("Enter a valid stock adjustment");
     }
 
     const supabase = createServiceSupabaseClient();
@@ -57,7 +57,12 @@ export async function POST(
       return jsonError("Product not found", 404);
     }
 
-    const nextStock = Number(product.stock || 0) + qty;
+    const nextStock = Number(product.stock || 0) + adjustment;
+
+    if (nextStock < 0) {
+      return jsonError("Cannot reduce stock below zero", 409);
+    }
+
     const { data: updated, error } = await supabase
       .from("products")
       .update({

@@ -50,6 +50,23 @@ export async function POST(req: NextRequest) {
 
     const member = staff[0];
     const role = member.role === "owner" ? "owner" : "staff";
+
+    // Close any dangling open sessions for this staff member (e.g. they
+    // closed the browser without logging out last time) so hours-worked
+    // figures don't grow unbounded, then start a fresh session.
+    await supabase
+      .from("staff_sessions")
+      .update({ logout_at: new Date().toISOString() })
+      .eq("staff_name", member.name)
+      .is("logout_at", null);
+
+    const { error: sessionError } = await supabase
+      .from("staff_sessions")
+      .insert({ staff_name: member.name });
+
+    if (sessionError) {
+      console.error("Staff session start failed:", sessionError);
+    }
     const response = NextResponse.json({
       name: member.name,
       role,

@@ -78,6 +78,15 @@ const [showCashModal, setShowCashModal] = useState(false);
   const [payment, setPayment]         = useState<"cash" | "card">("cash");
   const [undoHistory, setUndoHistory] = useState<SaleRecord[]>([]);
   const [showUndo, setShowUndo]       = useState(false);
+  const [undoTarget, setUndoTarget]   = useState<SaleRecord | null>(null);
+  const [ownerPinInput, setOwnerPinInput] = useState("");
+  const [undoError, setUndoError]     = useState("");
+  const [undoSubmitting, setUndoSubmitting] = useState(false);
+
+  const [showCashCountModal, setShowCashCountModal] = useState(false);
+  const [cashCountAmount, setCashCountAmount]       = useState("");
+  const [cashCountError, setCashCountError]         = useState("");
+  const [cashCountSubmitting, setCashCountSubmitting] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<SaleRecord | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
 const [amountGiven, setAmountGiven] = useState("");
@@ -168,10 +177,50 @@ const [amountGiven, setAmountGiven] = useState("");
     }
   }
 
-  function logout() {
+  function performLogout() {
     fetch("/api/logout", { method: "POST" }).then(() => {
       window.location.href = "/login";
     });
+  }
+
+  function requestLogout() {
+    setCashCountAmount("");
+    setCashCountError("");
+    setShowCashCountModal(true);
+  }
+
+  async function submitCashCount() {
+    const amount = Number(cashCountAmount);
+
+    if (!cashCountAmount || !Number.isFinite(amount) || amount < 0) {
+      setCashCountError("Enter the cash you counted");
+      return;
+    }
+
+    setCashCountSubmitting(true);
+    setCashCountError("");
+
+    try {
+      const res = await fetch("/api/cash-counts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ counted_amount: amount }),
+      });
+
+      if (!res.ok) {
+        const result = await res.json();
+        setCashCountError(result.error ?? "Unable to submit cash count");
+        return;
+      }
+    } catch {
+      setCashCountError("Unable to submit cash count");
+      return;
+    } finally {
+      setCashCountSubmitting(false);
+    }
+
+    setShowCashCountModal(false);
+    performLogout();
   }
 
   async function handleScan(code: string) {
@@ -406,34 +455,51 @@ function confirmCashSale() {
     }
   }
 
-  async function undoSale(record: SaleRecord) {
+  function undoSale(record: SaleRecord) {
     if (record.pending) {
       alert("This sale is still waiting to sync. It cannot be undone yet.");
       return;
     }
 
-    const confirm = window.confirm(`Undo sale of R${record.grandTotal} from ${record.time}?`);
-    if (!confirm) return;
+    setUndoTarget(record);
+    setOwnerPinInput("");
+    setUndoError("");
+  }
+
+  async function confirmUndoWithPin() {
+    if (!undoTarget) return;
+
+    if (!ownerPinInput.trim()) {
+      setUndoError("Enter the owner PIN");
+      return;
+    }
+
+    setUndoSubmitting(true);
+    setUndoError("");
 
     try {
       const res = await fetch("/api/sales/undo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ saleIds: record.saleIds }),
+        body: JSON.stringify({ saleIds: undoTarget.saleIds, ownerPin: ownerPinInput.trim() }),
       });
 
       if (!res.ok) {
         const result = await res.json();
-        alert(result.error ?? "Unable to undo sale");
+        setUndoError(result.error ?? "Unable to undo sale");
         return;
       }
     } catch {
-      alert("Unable to undo sale");
+      setUndoError("Unable to undo sale");
       return;
+    } finally {
+      setUndoSubmitting(false);
     }
 
-    setUndoHistory(prev => prev.filter(r => r.saleIds[0] !== record.saleIds[0]));
+    setUndoHistory(prev => prev.filter(r => r.saleIds[0] !== undoTarget.saleIds[0]));
     setShowUndo(false);
+    setUndoTarget(null);
+    setOwnerPinInput("");
     loadProducts();
     alert("Sale undone successfully");
   }
@@ -476,7 +542,7 @@ function confirmCashSale() {
           <button style={S.btn} onClick={() => setShowUndo(true)}>
             Undo History ({undoHistory.length})
           </button>
-          <button style={{ ...S.btn, color: "#ff4d4d" }} onClick={logout}>Logout</button>
+          <button style={{ ...S.btn, color: "#ff4d4d" }} onClick={requestLogout}>Logout</button>
         </div>
       </div>
 
@@ -727,6 +793,80 @@ function confirmCashSale() {
               ))
             )}
             <button style={{ ...S.btn, width: "100%", marginTop: 10 }} onClick={() => setShowUndo(false)}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* OWNER PIN — AUTHORIZE UNDO MODAL */}
+      {undoTarget && (
+        <div style={S.overlay} onClick={() => { setUndoTarget(null); setUndoError(""); }}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#ff4d4d", marginBottom: 8 }}>Authorize Undo</h2>
+            <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>
+              Undo sale of R{undoTarget.grandTotal.toFixed(2)} from {undoTarget.time}? An owner must enter their PIN to approve this.
+            </p>
+            <input
+              type="password"
+              placeholder="Owner PIN"
+              value={ownerPinInput}
+              onChange={e => setOwnerPinInput(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && confirmUndoWithPin()}
+              style={{ width: "100%", padding: 12, background: "#1A1A1A", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 18, marginBottom: 12, boxSizing: "border-box" as const }}
+              autoFocus
+            />
+            {undoError && <p style={{ color: "#ff4d4d", fontSize: 13, marginBottom: 12 }}>{undoError}</p>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={confirmUndoWithPin}
+                disabled={undoSubmitting}
+                style={{ flex: 1, background: "#ff4d4d", color: "#fff", border: "none", padding: "12px 0", borderRadius: 8, fontWeight: 700, cursor: undoSubmitting ? "wait" : "pointer", opacity: undoSubmitting ? 0.7 : 1 }}
+              >
+                {undoSubmitting ? "Checking..." : "Authorize Undo"}
+              </button>
+              <button
+                onClick={() => { setUndoTarget(null); setUndoError(""); }}
+                style={{ flex: 1, background: "#1A1A1A", color: "#aaa", border: "1px solid #333", padding: "12px 0", borderRadius: 8, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CASH COUNT — MANDATORY AT LOGOUT */}
+      {showCashCountModal && (
+        <div style={S.overlay}>
+          <div style={S.modal} onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#d4af37", marginBottom: 8 }}>Count the Drawer</h2>
+            <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>
+              Before logging out, enter the exact physical cash currently in the drawer. Count it yourself — this figure is checked against the system separately by the owner.
+            </p>
+            <input
+              type="number"
+              placeholder="Cash counted"
+              value={cashCountAmount}
+              onChange={e => setCashCountAmount(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && submitCashCount()}
+              style={{ width: "100%", padding: 12, background: "#1A1A1A", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 18, marginBottom: 12, boxSizing: "border-box" as const }}
+              autoFocus
+            />
+            {cashCountError && <p style={{ color: "#ff4d4d", fontSize: 13, marginBottom: 12 }}>{cashCountError}</p>}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={submitCashCount}
+                disabled={cashCountSubmitting}
+                style={{ flex: 1, background: "#d4af37", color: "#000", border: "none", padding: "12px 0", borderRadius: 8, fontWeight: 700, cursor: cashCountSubmitting ? "wait" : "pointer", opacity: cashCountSubmitting ? 0.7 : 1 }}
+              >
+                {cashCountSubmitting ? "Submitting..." : "Submit & Logout"}
+              </button>
+              <button
+                onClick={() => setShowCashCountModal(false)}
+                style={{ flex: 1, background: "#1A1A1A", color: "#aaa", border: "1px solid #333", padding: "12px 0", borderRadius: 8, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}

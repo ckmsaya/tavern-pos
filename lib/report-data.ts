@@ -1,5 +1,6 @@
 import { createServiceSupabaseClient } from "@/lib/server-supabase";
 import { ReportData } from "@/lib/daily-report-pdf";
+import { getStaffSessionsReport } from "@/lib/staff-sessions";
 
 export function todayDateString(): string {
   return new Date().toISOString().split("T")[0];
@@ -56,6 +57,8 @@ export async function getTodayReportData(): Promise<ReportData> {
     0
   );
 
+  const staffSessions = await getStaffSessionsReport(date);
+
   return {
     date,
     revenue,
@@ -70,5 +73,6 @@ export async function getTodayReportData(): Promise<ReportData> {
       payment_method: s.payment_method,
       staff_name: s.staff_name,
     })),
+    staffSessions,
   };
 }

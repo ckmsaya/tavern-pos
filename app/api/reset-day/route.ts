@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     requireOwner(req);
 
     const supabase = createServiceSupabaseClient();
-    const { error: salesError } = await supabase.from("sales").delete().neq("id", 0);
+    const { error: salesError } = await supabase.from("sales").delete().not("id", "is", null);
 
     if (salesError) {
       console.error("Reset sales delete failed:", salesError);

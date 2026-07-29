@@ -23,6 +23,14 @@ export interface ReportProduct {
 }
 export interface ReportStaff { name: string; total: number; }
 export interface ReportSale  { created_at: string; total: number; payment_method: string; staff_name: string; }
+export interface ReportStaffSession {
+  staffName: string;
+  loginAt: string;
+  logoutAt: string | null;
+  hoursWorked: number;
+  itemsSold: number;
+  moneyMade: number;
+}
 export interface ReportData {
   date: string;
   revenue: number;
@@ -32,6 +40,7 @@ export interface ReportData {
   staff: ReportStaff[];
   products: ReportProduct[];
   sales: ReportSale[];
+  staffSessions: ReportStaffSession[];
 }
 
 function n(v: unknown): number { return Number(v) || 0; }
@@ -239,6 +248,32 @@ export async function buildDailyReportPDF(data: ReportData): Promise<Buffer> {
       );
     } else {
       doc.font("Helvetica").fontSize(8).fillColor(DGREY).text("No hourly data available.", LEFT);
+      doc.moveDown(0.3);
+    }
+
+    // ── STAFF ACTIVITY ───────────────────────────────────────────────────
+    sectionTitle("STAFF ACTIVITY");
+    const sessions = data.staffSessions ?? [];
+    if (sessions.length) {
+      const fmtTime = (v: string | null) => v ? new Date(v).toLocaleTimeString() : "—";
+      const aRows = sessions.map(s => [
+        s.staffName,
+        fmtTime(s.loginAt),
+        fmtTime(s.logoutAt),
+        s.hoursWorked.toFixed(1),
+        String(s.itemsSold),
+        fmt(s.moneyMade),
+      ]);
+      const aColours = aRows.map(() => ["#111111", "#111111", "#111111", "#111111", "#111111", GREEN]);
+      drawTable(
+        ["STAFF", "LOGIN", "LOGOUT", "HOURS", "ITEMS SOLD", "MONEY MADE"],
+        aRows,
+        [130, 90, 90, 60, 90, 120],
+        ["left", "center", "center", "center", "center", "right"],
+        aColours
+      );
+    } else {
+      doc.font("Helvetica").fontSize(8).fillColor(DGREY).text("No staff activity recorded.", LEFT);
       doc.moveDown(0.3);
     }
 

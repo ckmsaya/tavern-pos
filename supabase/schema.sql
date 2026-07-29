@@ -72,6 +72,54 @@ revoke all on function verify_staff_pin(text, uuid) from anon;
 revoke all on function verify_staff_pin(text, uuid) from authenticated;
 grant execute on function verify_staff_pin(text, uuid) to service_role;
 
+-- Lets the staff-management API hash a new/reset PIN without needing raw
+-- SQL access. Locked down the same way as verify_staff_pin.
+create or replace function hash_staff_pin(input_pin text)
+returns text
+language sql
+security definer
+set search_path = public
+as $$
+  select extensions.crypt(input_pin, extensions.gen_salt('bf'));
+$$;
+
+revoke all on function hash_staff_pin(text) from public;
+revoke all on function hash_staff_pin(text) from anon;
+revoke all on function hash_staff_pin(text) from authenticated;
+grant execute on function hash_staff_pin(text) to service_role;
+
+create table if not exists staff_sessions (
+  id bigint generated always as identity primary key,
+  staff_name text not null,
+  login_at timestamptz not null default now(),
+  logout_at timestamptz
+);
+
+create table if not exists undo_audit_log (
+  id bigint generated always as identity primary key,
+  sale_id uuid,
+  product_id uuid,
+  quantity integer,
+  total numeric,
+  staff_name text,
+  undone_by text,
+  approved_by text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists cash_counts (
+  id bigint generated always as identity primary key,
+  staff_name text not null,
+  counted_amount numeric not null,
+  expected_cash numeric not null,
+  status text not null default 'pending' check (status in ('pending', 'confirmed', 'discrepancy')),
+  owner_name text,
+  owner_amount numeric,
+  owner_note text,
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz
+);
+
 -- Row Level Security: lock down direct table access entirely. All reads
 -- and writes go through Next.js API routes using the service-role key
 -- (which bypasses RLS), never the anon key from the browser. No policies
@@ -81,3 +129,6 @@ grant execute on function verify_staff_pin(text, uuid) to service_role;
 alter table products enable row level security;
 alter table sales enable row level security;
 alter table staff enable row level security;
+alter table undo_audit_log enable row level security;
+alter table cash_counts enable row level security;
+alter table staff_sessions enable row level security;
