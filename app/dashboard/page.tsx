@@ -487,6 +487,12 @@ export default function Dashboard() {
     }
   }
 
+  function logout() {
+    fetch("/api/logout", { method: "POST" }).then(() => {
+      window.location.href = "/login";
+    });
+  }
+
   // ── CHART ─────────────────────────────────────────────────────────────────
   const chartData = {
     labels: sales.map((sale) => new Date(sale.created_at).toLocaleTimeString()),
@@ -509,33 +515,37 @@ export default function Dashboard() {
     { key: "price", placeholder: "Selling price" },
   ];
 
-  // ── MODAL STYLE ───────────────────────────────────────────────────────────
-  const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 };
-  const modal:   React.CSSProperties = { background: "#111", border: "1px solid #d4af37", borderRadius: 16, padding: 28, maxWidth: 380, width: "90%" };
-  const inp:     React.CSSProperties = { width: "100%", padding: 10, background: "#1A1A1A", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 15, boxSizing: "border-box", marginBottom: 12 };
-
   return (
-    <div className={styles.container}>
+    <div className={styles.page}>
 
-      <h1 className={styles.title}>Tavern Dashboard</h1>
+      {/* ── HEADER ────────────────────────────────────────────────────────── */}
+      <div className={styles.header}>
+        <div>
+          <div className={styles.brandTitle}>Tavern Dashboard</div>
+          <div className={styles.brandSubtitle}>Owner Control Centre</div>
+        </div>
+        <button className="btn btn-ghost" onClick={logout}>Logout</button>
+      </div>
 
       {/* ── ADD PRODUCT ──────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 20, padding: 15, border: "1px solid #333", borderRadius: 10 }}>
-        <h3 style={{ color: "#d4af37", marginBottom: 12 }}>Add New Product</h3>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h3 className={styles.sectionTitle}>Add New Product</h3>
+        </div>
+        <div className={styles.formRow}>
           {formFields.map((field) => (
             <input
               key={field.key}
+              className="input"
               placeholder={field.placeholder}
               value={newProduct[field.key]}
               onChange={(e) => setNewProduct({ ...newProduct, [field.key]: e.target.value })}
-              style={{ padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
             />
           ))}
           <select
+            className="input"
             value={newProduct.category}
             onChange={e => setNewProduct({ ...newProduct, category: e.target.value })}
-            style={{ padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
           >
             <option value="">Category</option>
             <option value="beer">Beer</option>
@@ -544,12 +554,8 @@ export default function Dashboard() {
             <option value="wine">Wine</option>
             <option value="other">Other</option>
           </select>
-          <button
-            onClick={addProduct}
-            disabled={addLoading}
-            style={{ background: "#d4af37", color: "#000", padding: "10px 18px", border: "none", borderRadius: 8, fontWeight: "bold", cursor: addLoading ? "wait" : "pointer", opacity: addLoading ? 0.7 : 1 }}
-          >
-            {addLoading ? "Adding..." : "Add Product"}
+          <button className="btn btn-primary" onClick={addProduct} disabled={addLoading}>
+            {addLoading ? "Adding…" : "Add Product"}
           </button>
         </div>
       </div>
@@ -558,31 +564,43 @@ export default function Dashboard() {
       <div className={styles.cards}>
         <div className={styles.panel}>
           <h3 className={styles.panelTitle}>Staff Performance</h3>
-          {Object.entries(staffStats)
-            .sort(([, a], [, b]) => b - a)
-            .map(([name, total]) => (
-              <div key={name} className={styles.staffRow}>
-                <span>{name}</span><span>R{total}</span>
-              </div>
-            ))}
+          {Object.entries(staffStats).length === 0 ? (
+            <p className={styles.emptyState}>No sales yet today.</p>
+          ) : (
+            Object.entries(staffStats)
+              .sort(([, a], [, b]) => b - a)
+              .map(([name, total]) => (
+                <div key={name} className={styles.staffRow}>
+                  <span>{name}</span><span>R{total}</span>
+                </div>
+              ))
+          )}
         </div>
-        <div className={styles.card}><p className={styles.cardLabel}>Revenue</p><h2 className={styles.cardValue}>R{revenue}</h2></div>
-        <div className={styles.card}><p className={styles.cardLabel}>Cash</p><h2 className={styles.cardValue}>R{cash}</h2></div>
-        <div className={styles.card}><p className={styles.cardLabel}>Card</p><h2 className={styles.cardValue}>R{card}</h2></div>
-        <div className={styles.card}><p className={styles.cardLabel}>Profit</p><h2 className={styles.cardValue}>R{profit.toFixed(2)}</h2></div>
+        <div className={styles.card} style={{ "--accent": "var(--gold)" } as React.CSSProperties}>
+          <p className={styles.cardLabel}>Revenue</p><h2 className={styles.cardValue}>R{revenue}</h2>
+        </div>
+        <div className={styles.card} style={{ "--accent": "var(--green)" } as React.CSSProperties}>
+          <p className={styles.cardLabel}>Cash</p><h2 className={styles.cardValue}>R{cash}</h2>
+        </div>
+        <div className={styles.card} style={{ "--accent": "var(--blue)" } as React.CSSProperties}>
+          <p className={styles.cardLabel}>Card</p><h2 className={styles.cardValue}>R{card}</h2>
+        </div>
+        <div className={styles.card} style={{ "--accent": profit >= 0 ? "var(--green)" : "var(--red)" } as React.CSSProperties}>
+          <p className={styles.cardLabel}>Profit</p><h2 className={styles.cardValue}>R{profit.toFixed(2)}</h2>
+        </div>
       </div>
 
       {/* ── ACTION BUTTONS ───────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 20 }}>
-        <button className={styles.btn} onClick={closeDay} disabled={reportLoading} style={{ opacity: reportLoading ? 0.6 : 1, cursor: reportLoading ? "wait" : "pointer" }}>
-          {reportLoading ? "Generating..." : "Close Day"}
+      <div className={styles.actionBar}>
+        <button className="btn btn-primary" onClick={closeDay} disabled={reportLoading}>
+          {reportLoading ? "Generating…" : "Close Day · Generate Report"}
         </button>
-        <button className={styles.btn} onClick={() => { setResetError(""); setShowReset(true); }}>Reset Day</button>
+        <button className="btn btn-danger" onClick={() => { setResetError(""); setShowReset(true); }}>Reset Day</button>
       </div>
 
       {/* ── CHART + LOW STOCK ────────────────────────────────────────────── */}
       <div className={styles.row}>
-        <div className={styles.chartPanel}>
+        <div className={styles.panel}>
           <h3 className={styles.panelTitle}>Sales Activity</h3>
           <div style={{ height: 180 }}><Line data={chartData} /></div>
           <div className={styles.activity}>
@@ -594,97 +612,109 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-        <div className={styles.sidePanel}>
+        <div className={styles.panel}>
           <h3 className={styles.panelTitle}>Low Stock</h3>
           {lowStockUI.length === 0 ? (
-            <p style={{ color: "#555", fontSize: 13 }}>All stock OK</p>
+            <p className={styles.emptyState}>All stock OK</p>
           ) : (
             lowStockUI.map((product) => (
-              <div key={product.id} className={styles.lowStock}>{product.name} — {product.stock} left</div>
+              <div key={product.id} className={styles.lowStock}>
+                <span>{product.name}</span>
+                <span className="badge badge-red">{product.stock} left</span>
+              </div>
             ))
           )}
         </div>
       </div>
 
       {/* ── INVENTORY TABLE ──────────────────────────────────────────────── */}
-      <div className={styles.inventory}>
-        <h3 className={styles.panelTitle}>Inventory</h3>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              {["Product","Category","Cost","Price","Opening","Stock","Sold","Profit","Restock"].map(h => <th key={h}>{h}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {products.map((product) => {
-              const sold = (product.opening_stock ?? 0) - product.stock;
-              const pr = sold * ((product.price ?? 0) - (product.cost_price ?? 0));
-              return (
-                <tr key={product.id}>
-                  <td>{product.name}</td>
-                  <td>{product.category}</td>
-                  <td>R{product.cost_price}</td>
-                  <td>R{product.price}</td>
-                  <td>{product.opening_stock}</td>
-                  <td style={{ color: product.stock <= 5 ? "#ff4d4d" : undefined, fontWeight: product.stock <= 5 ? 700 : 400 }}>{product.stock}</td>
-                  <td>{sold}</td>
-                  <td>R{pr.toFixed(2)}</td>
-                  <td><button className={styles.btn} onClick={() => openRestock(product)}>Restock</button></td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h3 className={styles.sectionTitle}>Inventory</h3>
+          <span className={styles.sectionHint}>{products.length} products</span>
+        </div>
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                {["Product","Category","Cost","Price","Opening","Stock","Sold","Profit","Restock"].map(h => <th key={h}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((product) => {
+                const sold = (product.opening_stock ?? 0) - product.stock;
+                const pr = sold * ((product.price ?? 0) - (product.cost_price ?? 0));
+                return (
+                  <tr key={product.id}>
+                    <td>{product.name}</td>
+                    <td>{product.category}</td>
+                    <td>R{product.cost_price}</td>
+                    <td>R{product.price}</td>
+                    <td>{product.opening_stock}</td>
+                    <td>
+                      {product.stock <= 5
+                        ? <span className="badge badge-red">{product.stock}</span>
+                        : product.stock}
+                    </td>
+                    <td>{sold}</td>
+                    <td>R{pr.toFixed(2)}</td>
+                    <td><button className="btn btn-sm" onClick={() => openRestock(product)}>Restock</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* ── CASH RECONCILIATION ──────────────────────────────────────────── */}
-      <div style={{ marginBottom: 20, padding: 15, border: "1px solid #333", borderRadius: 10 }}>
-        <h3 style={{ color: "#d4af37", marginBottom: 12 }}>Cash Reconciliation</h3>
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h3 className={styles.sectionTitle}>Cash Reconciliation</h3>
+        </div>
         {cashCounts.length === 0 ? (
-          <p style={{ color: "#555", fontSize: 13 }}>No cash counts submitted yet.</p>
+          <p className={styles.emptyState}>No cash counts submitted yet.</p>
         ) : (
           cashCounts.map((count) => {
             const variance = count.counted_amount - count.expected_cash;
             const recountValue = ownerRecount[String(count.id)] ?? "";
+            const badgeClass = count.status === "confirmed" ? "badge-green" : count.status === "discrepancy" ? "badge-red" : "badge-gold";
             return (
-              <div key={count.id} style={{ background: "#1A1A1A", borderRadius: 8, padding: 14, marginBottom: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                  <span style={{ color: "#aaa", fontSize: 13 }}>{count.staff_name} — {new Date(count.created_at).toLocaleString()}</span>
-                  <span style={{
-                    color: count.status === "confirmed" ? "#27AE60" : count.status === "discrepancy" ? "#ff4d4d" : "#d4af37",
-                    fontWeight: 700, fontSize: 12, textTransform: "uppercase"
-                  }}>{count.status}</span>
+              <div key={count.id} className={styles.listRow}>
+                <div className={styles.listRowHead}>
+                  <span className={styles.metaText}>{count.staff_name} — {new Date(count.created_at).toLocaleString()}</span>
+                  <span className={`badge ${badgeClass}`}>{count.status}</span>
                 </div>
-                <div style={{ display: "flex", gap: 20, marginBottom: 8, flexWrap: "wrap" }}>
+                <div className={styles.statGrid}>
                   <div>
-                    <p style={{ color: "#888", fontSize: 12 }}>Staff counted</p>
-                    <p style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>R{count.counted_amount.toFixed(2)}</p>
+                    <p className={styles.statLabel}>Staff counted</p>
+                    <p className={styles.statValue}>R{count.counted_amount.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p style={{ color: "#888", fontSize: 12 }}>System expected</p>
-                    <p style={{ color: "#fff", fontSize: 16, fontWeight: 700 }}>R{count.expected_cash.toFixed(2)}</p>
+                    <p className={styles.statLabel}>System expected</p>
+                    <p className={styles.statValue}>R{count.expected_cash.toFixed(2)}</p>
                   </div>
                   <div>
-                    <p style={{ color: "#888", fontSize: 12 }}>Variance</p>
-                    <p style={{ color: variance === 0 ? "#27AE60" : "#ff4d4d", fontSize: 16, fontWeight: 700 }}>
+                    <p className={styles.statLabel}>Variance</p>
+                    <p className={styles.statValue} style={{ color: variance === 0 ? "var(--green)" : "#ff8589" }}>
                       {variance > 0 ? "+" : ""}R{variance.toFixed(2)}
                     </p>
                   </div>
                 </div>
                 {count.status === "pending" ? (
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <div className={styles.formRow}>
                     <input
+                      className="input"
                       type="number"
                       placeholder="Your own recount"
                       value={recountValue}
                       onChange={e => setOwnerRecount(prev => ({ ...prev, [String(count.id)]: e.target.value }))}
-                      style={{ flex: 1, minWidth: 140, padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
                     />
-                    <button onClick={() => reviewCashCount(count.id, "confirmed")} style={{ background: "#27AE60", color: "#000", border: "none", padding: "8px 14px", borderRadius: 6, fontWeight: 700, cursor: "pointer" }}>Confirm Match</button>
-                    <button onClick={() => reviewCashCount(count.id, "discrepancy")} style={{ background: "#ff4d4d", color: "#fff", border: "none", padding: "8px 14px", borderRadius: 6, fontWeight: 700, cursor: "pointer" }}>Flag Discrepancy</button>
+                    <button className="btn btn-success" onClick={() => reviewCashCount(count.id, "confirmed")}>Confirm Match</button>
+                    <button className="btn btn-danger" onClick={() => reviewCashCount(count.id, "discrepancy")}>Flag Discrepancy</button>
                   </div>
                 ) : count.owner_amount !== null && (
-                  <p style={{ color: "#888", fontSize: 12 }}>Owner recount: R{count.owner_amount.toFixed(2)}</p>
+                  <p className={styles.metaText}>Owner recount: R{count.owner_amount.toFixed(2)}</p>
                 )}
               </div>
             );
@@ -693,105 +723,102 @@ export default function Dashboard() {
       </div>
 
       {/* ── UNDO LOG ──────────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 20, padding: 15, border: "1px solid #333", borderRadius: 10 }}>
-        <h3 style={{ color: "#d4af37", marginBottom: 12 }}>Undo Log</h3>
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h3 className={styles.sectionTitle}>Undo Log</h3>
+        </div>
         {undoLog.length === 0 ? (
-          <p style={{ color: "#555", fontSize: 13 }}>No sales have been undone.</p>
+          <p className={styles.emptyState}>No sales have been undone.</p>
         ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {["Time", "Original Staff", "Undone By", "Approved By", "Amount"].map(h => <th key={h}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {undoLog.map((entry) => (
-                <tr key={entry.id}>
-                  <td>{new Date(entry.created_at).toLocaleString()}</td>
-                  <td>{entry.staff_name}</td>
-                  <td>{entry.undone_by}</td>
-                  <td>{entry.approved_by}</td>
-                  <td>R{Number(entry.total).toFixed(2)}</td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  {["Time", "Original Staff", "Undone By", "Approved By", "Amount"].map(h => <th key={h}>{h}</th>)}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {undoLog.map((entry) => (
+                  <tr key={entry.id}>
+                    <td>{new Date(entry.created_at).toLocaleString()}</td>
+                    <td>{entry.staff_name}</td>
+                    <td>{entry.undone_by}</td>
+                    <td>{entry.approved_by}</td>
+                    <td>R{Number(entry.total).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* ── MANAGE STAFF ─────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 20, padding: 15, border: "1px solid #333", borderRadius: 10 }}>
-        <h3 style={{ color: "#d4af37", marginBottom: 12 }}>Manage Staff</h3>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h3 className={styles.sectionTitle}>Manage Staff</h3>
+        </div>
+        <div className={styles.formRow} style={{ marginBottom: 18 }}>
           <input
+            className="input"
             placeholder="Staff name"
             value={newStaffName}
             onChange={e => setNewStaffName(e.target.value)}
-            style={{ padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
           />
           <select
+            className="input"
             value={newStaffRole}
             onChange={e => setNewStaffRole(e.target.value === "owner" ? "owner" : "staff")}
-            style={{ padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
           >
             <option value="staff">Staff</option>
             <option value="owner">Owner</option>
           </select>
           <input
+            className="input"
             placeholder="PIN (4-12 digits)"
             type="password"
             value={newStaffPin}
             onChange={e => setNewStaffPin(e.target.value)}
-            style={{ padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
           />
           <input
+            className="input"
             placeholder="Confirm PIN"
             type="password"
             value={newStaffPinConfirm}
             onChange={e => setNewStaffPinConfirm(e.target.value)}
-            style={{ padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
           />
-          <button
-            onClick={addStaff}
-            disabled={addStaffLoading}
-            style={{ background: "#d4af37", color: "#000", padding: "10px 18px", border: "none", borderRadius: 8, fontWeight: "bold", cursor: addStaffLoading ? "wait" : "pointer", opacity: addStaffLoading ? 0.7 : 1 }}
-          >
-            {addStaffLoading ? "Adding..." : "Add Staff"}
+          <button className="btn btn-primary" onClick={addStaff} disabled={addStaffLoading}>
+            {addStaffLoading ? "Adding…" : "Add Staff"}
           </button>
         </div>
 
         {staffList.length === 0 ? (
-          <p style={{ color: "#555", fontSize: 13 }}>No staff members yet.</p>
+          <p className={styles.emptyState}>No staff members yet.</p>
         ) : (
           staffList.map((member) => (
-            <div key={member.id} style={{ background: "#1A1A1A", borderRadius: 8, padding: 14, marginBottom: 10 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ color: "#fff" }}>{member.name} <span style={{ color: "#888", fontSize: 12 }}>({member.role})</span></span>
-                <button
-                  onClick={() => openPinReset(member.id)}
-                  style={{ background: "#1A1A1A", color: "#d4af37", border: "1px solid #333", padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontSize: 13 }}
-                >
-                  Reset PIN
-                </button>
+            <div key={member.id} className={styles.listRow}>
+              <div className={styles.listRowHead}>
+                <span>{member.name} <span className={styles.metaText}>({member.role})</span></span>
+                <button className="btn btn-sm" onClick={() => openPinReset(member.id)}>Reset PIN</button>
               </div>
               {pinResetTarget === member.id && (
-                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                <div className={styles.formRow} style={{ marginTop: 10 }}>
                   <input
+                    className="input"
                     placeholder="New PIN"
                     type="password"
                     value={pinResetValue}
                     onChange={e => setPinResetValue(e.target.value)}
-                    style={{ flex: 1, minWidth: 120, padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
                   />
                   <input
+                    className="input"
                     placeholder="Confirm new PIN"
                     type="password"
                     value={pinResetConfirm}
                     onChange={e => setPinResetConfirm(e.target.value)}
-                    style={{ flex: 1, minWidth: 120, padding: 8, background: "#111", color: "#fff", border: "1px solid #333", borderRadius: 6 }}
                   />
-                  <button onClick={submitPinReset} style={{ background: "#27AE60", color: "#000", border: "none", padding: "8px 14px", borderRadius: 6, fontWeight: 700, cursor: "pointer" }}>Save</button>
-                  <button onClick={() => setPinResetTarget(null)} style={{ background: "#1A1A1A", color: "#aaa", border: "1px solid #333", padding: "8px 14px", borderRadius: 6, cursor: "pointer" }}>Cancel</button>
+                  <button className="btn btn-success" onClick={submitPinReset}>Save</button>
+                  <button className="btn btn-ghost" onClick={() => setPinResetTarget(null)}>Cancel</button>
                 </div>
               )}
             </div>
@@ -800,55 +827,61 @@ export default function Dashboard() {
       </div>
 
       {/* ── STAFF ACTIVITY ───────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 20, padding: 15, border: "1px solid #333", borderRadius: 10 }}>
-        <h3 style={{ color: "#d4af37", marginBottom: 12 }}>Staff Activity (Today)</h3>
+      <div className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h3 className={styles.sectionTitle}>Staff Activity</h3>
+          <span className={styles.sectionHint}>Today</span>
+        </div>
         {staffSessions.length === 0 ? (
-          <p style={{ color: "#555", fontSize: 13 }}>No staff activity recorded today.</p>
+          <p className={styles.emptyState}>No staff activity recorded today.</p>
         ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {["Staff", "Login", "Logout", "Hours", "Items Sold", "Money Made"].map(h => <th key={h}>{h}</th>)}
-              </tr>
-            </thead>
-            <tbody>
-              {staffSessions.map((session, i) => (
-                <tr key={i}>
-                  <td>{session.staffName}</td>
-                  <td>{new Date(session.loginAt).toLocaleTimeString()}</td>
-                  <td>{session.logoutAt ? new Date(session.logoutAt).toLocaleTimeString() : "Active"}</td>
-                  <td>{session.hoursWorked.toFixed(1)}</td>
-                  <td>{session.itemsSold}</td>
-                  <td>R{session.moneyMade.toFixed(2)}</td>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  {["Staff", "Login", "Logout", "Hours", "Items Sold", "Money Made"].map(h => <th key={h}>{h}</th>)}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {staffSessions.map((session, i) => (
+                  <tr key={i}>
+                    <td>{session.staffName}</td>
+                    <td>{new Date(session.loginAt).toLocaleTimeString()}</td>
+                    <td>{session.logoutAt ? new Date(session.logoutAt).toLocaleTimeString() : <span className="badge badge-green">Active</span>}</td>
+                    <td>{session.hoursWorked.toFixed(1)}</td>
+                    <td>{session.itemsSold}</td>
+                    <td>R{session.moneyMade.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
       {/* ── RESTOCK MODAL ────────────────────────────────────────────────── */}
       {showRestock && restockProduct && (
-        <div style={overlay}>
-          <div style={modal}>
-            <h3 style={{ color: "#d4af37", marginBottom: 16 }}>Adjust Stock — {restockProduct.name}</h3>
-            <p style={{ color: "#888", fontSize: 13, marginBottom: 12 }}>Current stock: {restockProduct.stock}</p>
-            <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+        <div className="modal-overlay" onClick={() => setShowRestock(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: "var(--gold)", marginBottom: 6, fontSize: 18 }}>Adjust Stock</h3>
+            <p className={styles.metaText} style={{ marginBottom: 16 }}>{restockProduct.name} — current stock: {restockProduct.stock}</p>
+            <div className={styles.toggleGroup}>
               <button
                 onClick={() => setRestockMode("add")}
-                style={{ flex: 1, background: restockMode === "add" ? "#27AE60" : "#1A1A1A", color: restockMode === "add" ? "#000" : "#aaa", border: "1px solid #333", padding: "10px 0", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}
+                className={`${styles.toggleBtn} ${restockMode === "add" ? styles.toggleActiveAdd : ""}`}
               >
                 + Add Stock
               </button>
               <button
                 onClick={() => setRestockMode("remove")}
-                style={{ flex: 1, background: restockMode === "remove" ? "#ff4d4d" : "#1A1A1A", color: restockMode === "remove" ? "#000" : "#aaa", border: "1px solid #333", padding: "10px 0", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}
+                className={`${styles.toggleBtn} ${restockMode === "remove" ? styles.toggleActiveRemove : ""}`}
               >
                 − Remove Stock
               </button>
             </div>
             <input
-              style={inp}
+              className="input"
+              style={{ marginBottom: 16 }}
               placeholder={restockMode === "add" ? "Quantity to add" : "Quantity to remove"}
               type="number"
               value={restockQty}
@@ -857,8 +890,8 @@ export default function Dashboard() {
               autoFocus
             />
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={confirmRestock} style={{ flex: 1, background: "#d4af37", color: "#000", border: "none", padding: "12px 0", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>Confirm</button>
-              <button onClick={() => setShowRestock(false)} style={{ flex: 1, background: "#1A1A1A", color: "#aaa", border: "1px solid #333", padding: "12px 0", borderRadius: 8, cursor: "pointer" }}>Cancel</button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={confirmRestock}>Confirm</button>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowRestock(false)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -866,14 +899,14 @@ export default function Dashboard() {
 
       {/* ── RESET DAY MODAL ──────────────────────────────────────────────── */}
       {showReset && (
-        <div style={overlay}>
-          <div style={modal}>
-            <h3 style={{ color: "#ff4d4d", marginBottom: 8 }}>Reset Day</h3>
-            <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>{"This will delete all today\'s sales and reset opening stock. Owner access is required."}</p>
-            {resetError && <p style={{ color: "#ff4d4d", fontSize: 13, marginBottom: 12 }}>{resetError}</p>}
+        <div className="modal-overlay" onClick={() => setShowReset(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h3 style={{ color: "#ff8589", marginBottom: 8, fontSize: 18 }}>Reset Day</h3>
+            <p className={styles.metaText} style={{ marginBottom: 16 }}>This will delete all today&apos;s sales and reset opening stock. Owner access is required.</p>
+            {resetError && <p style={{ color: "#ff8589", fontSize: 13, marginBottom: 12 }}>{resetError}</p>}
             <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={confirmReset} style={{ flex: 1, background: "#ff4d4d", color: "#fff", border: "none", padding: "12px 0", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>Reset</button>
-              <button onClick={() => setShowReset(false)} style={{ flex: 1, background: "#1A1A1A", color: "#aaa", border: "1px solid #333", padding: "12px 0", borderRadius: 8, cursor: "pointer" }}>Cancel</button>
+              <button className="btn btn-danger-solid" style={{ flex: 1 }} onClick={confirmReset}>Reset</button>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowReset(false)}>Cancel</button>
             </div>
           </div>
         </div>

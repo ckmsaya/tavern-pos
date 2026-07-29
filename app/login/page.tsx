@@ -43,16 +43,21 @@ export default function Login() {
   return (
     <div className={styles.container}>
       <div className={styles.card}>
-        <h1 className={styles.title}>Tavern Login</h1>
+        <div className={styles.brand}>
+          <div className={styles.brandMark}>TAVERN</div>
+          <div className={styles.subtitle}>Staff Login</div>
+        </div>
 
         <input
           type="password"
+          inputMode="numeric"
           placeholder="Enter PIN"
           value={pin}
           onChange={(e) => setPin(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && login()}
           className={styles.input}
           autoComplete="off"
+          autoFocus
         />
 
         {error && <p className={styles.error}>{error}</p>}

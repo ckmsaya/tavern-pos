@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import styles from "./pos.module.css";
 
 interface Product {
   id: string;
@@ -510,54 +511,44 @@ function confirmCashSale() {
     return matchSearch && matchCategory;
   });
 
-  const S = {
-    container:    { padding: 20, paddingBottom: 160, background: "radial-gradient(circle at top, #111 0%, #000 60%)", color: "white", minHeight: "100vh", fontFamily: "Arial, sans-serif" } as React.CSSProperties,
-    title:        { color: "#d4af37", marginBottom: 10, fontSize: 22, fontWeight: 700 } as React.CSSProperties,
-    input:        { padding: 10, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "white", borderRadius: 8, outline: "none", fontSize: 14 } as React.CSSProperties,
-    btn:          { padding: "10px 16px", borderRadius: 8, border: "1px solid rgba(212,175,55,0.3)", background: "#111", color: "#d4af37", cursor: "pointer", fontSize: 13, transition: "all .2s" } as React.CSSProperties,
-    goldBtn:      { padding: "12px 24px", background: "#d4af37", color: "#000", border: "none", borderRadius: 8, fontWeight: 700, cursor: "pointer", fontSize: 15 } as React.CSSProperties,
-    card:         { border: "1px solid rgba(255,255,255,0.08)", padding: 12, borderRadius: 12, cursor: "pointer", transition: "0.25s", background: "rgba(255,255,255,0.03)" } as React.CSSProperties,
-    overlay:      { position: "fixed" as const, inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100 },
-    modal:        { background: "#111", border: "1px solid #d4af37", borderRadius: 16, padding: 28, maxWidth: 420, width: "90%", maxHeight: "80vh", overflowY: "auto" as const },
-  };
-
   // Show loading while fetching staff name
   if (!staffName) return (
-    <div style={{ ...S.container, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <p style={{ color: "#d4af37" }}>Loading...</p>
+    <div className={styles.loadingPage}>
+      <p className={styles.loadingText}>Loading…</p>
     </div>
   );
 
   return (
-    <div style={S.container}>
+    <div className={styles.page}>
 
       {/* HEADER */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <h1 style={S.title}>POS System</h1>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <span style={{ color: isOnline ? "#27AE60" : "#ff4d4d", fontSize: 12 }}>
-            {isOnline ? "Online" : "Offline"}{pendingCount ? ` • ${pendingCount} pending` : ""}
+      <div className={styles.header}>
+        <div className={styles.brandTitle}>TAVERN POS</div>
+        <div className={styles.headerRight}>
+          <span className={styles.statusPill}>
+            <span className={styles.statusDot} style={{ background: isOnline ? "var(--green)" : "var(--red)" }} />
+            {isOnline ? "Online" : "Offline"}{pendingCount ? ` · ${pendingCount} pending` : ""}
           </span>
-          <span style={{ color: "#aaa", fontSize: 13 }}>👤 {staffName}</span>
-          <button style={S.btn} onClick={() => setShowUndo(true)}>
+          <span className={styles.staffPill}>👤 {staffName}</span>
+          <button className="btn" onClick={() => setShowUndo(true)}>
             Undo History ({undoHistory.length})
           </button>
-          <button style={{ ...S.btn, color: "#ff4d4d" }} onClick={requestLogout}>Logout</button>
+          <button className="btn btn-danger" onClick={requestLogout}>Logout</button>
         </div>
       </div>
 
       {/* FILTERS */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", background: "rgba(255,255,255,0.03)", padding: 10, borderRadius: 10, border: "1px solid rgba(255,255,255,0.05)" }}>
-        <input style={S.input} placeholder="Search product..." value={search} onChange={e => setSearch(e.target.value)} />
+      <div className={styles.filters}>
+        <input className="input" placeholder="Search product…" value={search} onChange={e => setSearch(e.target.value)} />
         <input
           ref={barcodeRef}
-          style={S.input}
-          placeholder="Scan barcode..."
+          className="input"
+          placeholder="Scan barcode…"
           value={barcode}
           onChange={e => setBarcode(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleScan(barcode)}
         />
-        <select style={S.input} value={category} onChange={e => setCategory(e.target.value)}>
+        <select className="input" value={category} onChange={e => setCategory(e.target.value)}>
           <option value="all">All Categories</option>
           <option value="beer">Beer</option>
           <option value="cider">Cider</option>
@@ -569,64 +560,60 @@ function confirmCashSale() {
       </div>
 
       {/* PRODUCT GRID */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: 12 }}>
+      <div className={styles.grid}>
         {filtered.map(product => (
           <div
             key={product.id}
             onClick={() => addToCart(product)}
-            style={{
-              ...S.card,
-              opacity: product.stock <= 0 ? 0.4 : 1,
-              cursor: product.stock <= 0 ? "not-allowed" : "pointer",
-            }}
+            className={`${styles.productCard} ${product.stock <= 0 ? styles.productCardDisabled : ""}`}
           >
-            <p style={{ fontSize: 13, marginBottom: 4 }}>{product.name}</p>
-            <p style={{ color: "#d4af37", fontWeight: 700 }}>R{product.price}</p>
-            <p style={{ fontSize: 12, color: product.stock <= 5 ? "#ff4d4d" : "#aaa" }}>
+            <p className={styles.productName}>{product.name}</p>
+            <p className={styles.productPrice}>R{product.price}</p>
+            <p className={`${styles.productStock} ${product.stock <= 5 ? styles.productStockLow : ""}`}>
               {product.stock <= 0 ? "OUT OF STOCK" : `${product.stock} left`}
             </p>
           </div>
         ))}
       </div>
 
-      {/* BOTTOM BAR */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(10,10,10,0.95)", backdropFilter: "blur(15px)", borderTop: "1px solid rgba(255,255,255,0.08)", padding: 12, zIndex: 50 }}>
+      {/* CART BAR */}
+      <div className={styles.cartBar}>
         {cart.length > 0 && (
-          <div style={{ maxHeight: 140, overflowY: "auto", marginBottom: 10 }}>
+          <div className={styles.cartList}>
             {cart.map(item => (
-              <div key={item.product.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: "1px solid #1A1A1A" }}>
-                <span style={{ flex: 1, fontSize: 13, color: "#fff" }}>{item.product.name}</span>
-                <button onClick={() => updateQty(item.product.id, -1)} style={{ background: "#222", color: "#fff", border: "none", padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}>-</button>
-                <span style={{ color: "#d4af37", fontSize: 13, minWidth: 20, textAlign: "center" }}>{item.quantity}</span>
-                <button onClick={() => updateQty(item.product.id, 1)} style={{ background: "#222", color: "#fff", border: "none", padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}>+</button>
-                <span style={{ color: "#d4af37", fontSize: 13, minWidth: 60, textAlign: "right" }}>R{(item.product.price * item.quantity).toFixed(2)}</span>
-                <button onClick={() => removeFromCart(item.product.id)} style={{ background: "rgba(255,0,0,0.2)", color: "#ff4d4d", border: "none", padding: "2px 8px", borderRadius: 4, cursor: "pointer" }}>✕</button>
+              <div key={item.product.id} className={styles.cartItem}>
+                <span className={styles.cartItemName}>{item.product.name}</span>
+                <button className={styles.qtyBtn} onClick={() => updateQty(item.product.id, -1)}>−</button>
+                <span className={styles.qtyValue}>{item.quantity}</span>
+                <button className={styles.qtyBtn} onClick={() => updateQty(item.product.id, 1)}>+</button>
+                <span className={styles.cartItemTotal}>R{(item.product.price * item.quantity).toFixed(2)}</span>
+                <button className={styles.removeBtn} onClick={() => removeFromCart(item.product.id)}>✕</button>
               </div>
             ))}
           </div>
         )}
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div style={{ color: "#d4af37", fontSize: 16, fontWeight: 700 }}>
+        <div className={styles.cartFooter}>
+          <div className={styles.cartTotal}>
             {cart.length === 0 ? "Tap a product to add to cart" : `Total: R${cartTotal.toFixed(2)}`}
           </div>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div className={styles.cartActions}>
             {cart.length > 0 && (
-              <button onClick={clearCart} style={{ ...S.btn, color: "#ff4d4d", borderColor: "rgba(255,0,0,0.3)" }}>Clear</button>
+              <button className="btn btn-ghost" onClick={clearCart}>Clear</button>
             )}
             <button
+              className={payment === "cash" ? "btn btn-primary" : "btn"}
               onClick={() => {
-  setPayment("cash");
-  setAmountGiven("");
-  setShowCashModal(true); // 🆕 open modal instead of selling
-}}
-              style={{ ...S.goldBtn, background: payment === "cash" ? "#d4af37" : "#333", color: payment === "cash" ? "#000" : "#d4af37" }}
+                setPayment("cash");
+                setAmountGiven("");
+                setShowCashModal(true);
+              }}
             >
               Cash
             </button>
             <button
+              className={payment === "card" ? "btn btn-primary" : "btn"}
               onClick={() => { setPayment("card"); processSale("card"); }}
-              style={{ ...S.goldBtn, background: payment === "card" ? "#2980B9" : "#333", color: "#fff" }}
             >
               Card
             </button>
@@ -636,127 +623,99 @@ function confirmCashSale() {
 
       {/* RECEIPT MODAL */}
       {showReceipt && lastReceipt && (
-        <div style={S.overlay} onClick={() => setShowReceipt(false)}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
+        <div className="modal-overlay" onClick={() => setShowReceipt(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
             <div style={{ textAlign: "center", marginBottom: 16 }}>
-              <div style={{ fontSize: 40 }}>✅</div>
-              <h2 style={{ color: "#d4af37", marginBottom: 4 }}>Sale Complete</h2>
-              <p style={{ color: "#888", fontSize: 13 }}>{lastReceipt.time} — {lastReceipt.staffName}</p>
+              <div className={styles.receiptIcon}>✅</div>
+              <h2 style={{ color: "var(--gold)", marginBottom: 4, fontSize: 19 }}>Sale Complete</h2>
+              <p style={{ color: "var(--text-faint)", fontSize: 13 }}>{lastReceipt.time} — {lastReceipt.staffName}</p>
             </div>
             {lastReceipt.items.map((item, i) => (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #222" }}>
-                <span style={{ color: "#ccc" }}>{item.name} x{item.quantity}</span>
-                <span style={{ color: "#d4af37" }}>R{item.total.toFixed(2)}</span>
+              <div key={i} className={styles.receiptRow}>
+                <span style={{ color: "var(--text-muted)" }}>{item.name} x{item.quantity}</span>
+                <span style={{ color: "var(--gold)" }}>R{item.total.toFixed(2)}</span>
               </div>
             ))}
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", fontWeight: 700, fontSize: 16 }}>
+            <div className={styles.receiptTotalRow}>
               <span>Total</span>
-              <span style={{ color: "#d4af37" }}>R{lastReceipt.grandTotal.toFixed(2)}</span>
+              <span style={{ color: "var(--gold)" }}>R{lastReceipt.grandTotal.toFixed(2)}</span>
             </div>
-            <div style={{ textAlign: "center", marginTop: 4, color: "#888", fontSize: 13, marginBottom: 12 }}>
-              Paid by {lastReceipt.payment.toUpperCase()}{lastReceipt.pending ? " • queued for sync" : ""}
+            <div style={{ textAlign: "center", marginTop: 4, color: "var(--text-faint)", fontSize: 13, marginBottom: 12 }}>
+              Paid by {lastReceipt.payment.toUpperCase()}{lastReceipt.pending ? " · queued for sync" : ""}
             </div>
             {lastReceipt.payment === "cash" && (
               <div style={{ marginBottom: 16 }}>
-                <p style={{ color: "#aaa", fontSize: 13, marginBottom: 8 }}>Amount given by customer:</p>
+                <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 8 }}>Amount given by customer:</p>
                 <input
+                  className="input"
                   type="number"
                   placeholder="e.g. 100"
                   value={amountGiven}
                   onChange={e => setAmountGiven(e.target.value)}
-                  style={{ width: "100%", padding: 10, background: "#1A1A1A", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 16, boxSizing: "border-box" as const, marginBottom: 10 }}
+                  style={{ marginBottom: 10, fontSize: 16 }}
                   autoFocus
                 />
                 {amountGiven && Number(amountGiven) >= lastReceipt.grandTotal && (
-                  <div style={{ background: "#0D2A0D", border: "1px solid #27AE60", borderRadius: 10, padding: 14, textAlign: "center" }}>
-                    <p style={{ color: "#aaa", fontSize: 12, marginBottom: 4 }}>CHANGE DUE</p>
-                    <p style={{ color: "#27AE60", fontSize: 32, fontWeight: 900 }}>
+                  <div className={`${styles.changeBox} ${styles.changeBoxPositive}`}>
+                    <p style={{ color: "var(--text-faint)", fontSize: 12, marginBottom: 4 }}>CHANGE DUE</p>
+                    <p style={{ color: "var(--green)", fontSize: 32, fontWeight: 900 }}>
                       R{(Number(amountGiven) - lastReceipt.grandTotal).toFixed(2)}
                     </p>
                   </div>
                 )}
                 {amountGiven && Number(amountGiven) < lastReceipt.grandTotal && (
-                  <div style={{ background: "#2A0D0D", border: "1px solid #ff4d4d", borderRadius: 10, padding: 14, textAlign: "center" }}>
-                    <p style={{ color: "#ff4d4d", fontSize: 14, fontWeight: 700 }}>
+                  <div className={`${styles.changeBox} ${styles.changeBoxNegative}`}>
+                    <p style={{ color: "#ff8589", fontSize: 14, fontWeight: 700 }}>
                       Short by R{(lastReceipt.grandTotal - Number(amountGiven)).toFixed(2)}
                     </p>
                   </div>
                 )}
               </div>
             )}
-            <button style={{ ...S.goldBtn, width: "100%" }} onClick={() => setShowReceipt(false)}>Done</button>
+            <button className="btn btn-primary" style={{ width: "100%" }} onClick={() => setShowReceipt(false)}>Done</button>
           </div>
         </div>
       )}
 
-
-
-
-
-{/* 🆕 CASH MODAL */}
+{/* CASH MODAL */}
 {showCashModal && (
-  <div style={S.overlay} onClick={() => setShowCashModal(false)}>
-    <div style={S.modal} onClick={e => e.stopPropagation()}>
+  <div className="modal-overlay" onClick={() => setShowCashModal(false)}>
+    <div className="modal-box" onClick={e => e.stopPropagation()}>
 
-      <h2 style={{ color: "#d4af37", marginBottom: 10 }}>💰 Enter Amount</h2>
+      <h2 style={{ color: "var(--gold)", marginBottom: 10, fontSize: 19 }}>💰 Enter Amount</h2>
 
-      <p style={{ color: "#aaa", marginBottom: 10 }}>
+      <p style={{ color: "var(--text-muted)", marginBottom: 10 }}>
         Total: <b>R{cartTotal.toFixed(2)}</b>
       </p>
 
       <input
+        className="input"
         type="number"
         placeholder="e.g. 100"
         value={amountGiven}
         onChange={e => setAmountGiven(e.target.value)}
-        style={{
-          width: "100%",
-          padding: 12,
-          background: "#1A1A1A",
-          border: "1px solid #333",
-          borderRadius: 8,
-          color: "#fff",
-          fontSize: 18,
-          marginBottom: 12
-        }}
+        style={{ fontSize: 18, marginBottom: 12 }}
         autoFocus
       />
 
       {amountGiven && Number(amountGiven) >= cartTotal && (
-        <div style={{
-          background: "#0D2A0D",
-          border: "1px solid #27AE60",
-          borderRadius: 10,
-          padding: 14,
-          textAlign: "center",
-          marginBottom: 10
-        }}>
-          <p style={{ color: "#aaa", fontSize: 12 }}>CHANGE</p>
-          <p style={{ color: "#27AE60", fontSize: 30, fontWeight: 900 }}>
+        <div className={`${styles.changeBox} ${styles.changeBoxPositive}`}>
+          <p style={{ color: "var(--text-faint)", fontSize: 12 }}>CHANGE</p>
+          <p style={{ color: "var(--green)", fontSize: 30, fontWeight: 900 }}>
             R{(Number(amountGiven) - cartTotal).toFixed(2)}
           </p>
         </div>
       )}
 
       {amountGiven && Number(amountGiven) < cartTotal && (
-        <div style={{
-          background: "#2A0D0D",
-          border: "1px solid #ff4d4d",
-          borderRadius: 10,
-          padding: 14,
-          textAlign: "center",
-          marginBottom: 10
-        }}>
-          <p style={{ color: "#ff4d4d", fontWeight: 700 }}>
+        <div className={`${styles.changeBox} ${styles.changeBoxNegative}`}>
+          <p style={{ color: "#ff8589", fontWeight: 700 }}>
             Short by R{(cartTotal - Number(amountGiven)).toFixed(2)}
           </p>
         </div>
       )}
 
-      <button
-        onClick={confirmCashSale}
-        style={{ ...S.goldBtn, width: "100%", marginTop: 10 }}
-      >
+      <button className="btn btn-primary" style={{ width: "100%", marginTop: 10 }} onClick={confirmCashSale}>
         Confirm Sale
       </button>
 
@@ -766,67 +725,58 @@ function confirmCashSale() {
 
       {/* UNDO HISTORY MODAL */}
       {showUndo && (
-        <div style={S.overlay} onClick={() => setShowUndo(false)}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#d4af37", marginBottom: 16 }}>Undo History</h2>
+        <div className="modal-overlay" onClick={() => setShowUndo(false)}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "var(--gold)", marginBottom: 16, fontSize: 19 }}>Undo History</h2>
             {undoHistory.length === 0 ? (
-              <p style={{ color: "#888" }}>No recent sales to undo.</p>
+              <p style={{ color: "var(--text-faint)" }}>No recent sales to undo.</p>
             ) : (
               undoHistory.map((record, i) => (
-                <div key={i} style={{ background: "#1A1A1A", borderRadius: 10, padding: 14, marginBottom: 10 }}>
+                <div key={i} className={styles.cartItem} style={{ flexDirection: "column", alignItems: "stretch", background: "var(--surface-2)", borderRadius: 10, padding: 14, marginBottom: 10, border: "none" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ color: "#aaa", fontSize: 13 }}>{record.time} — {record.staffName}</span>
-                    <span style={{ color: "#d4af37", fontWeight: 700 }}>R{record.grandTotal.toFixed(2)}</span>
+                    <span style={{ color: "var(--text-faint)", fontSize: 13 }}>{record.time} — {record.staffName}</span>
+                    <span style={{ color: "var(--gold)", fontWeight: 700 }}>R{record.grandTotal.toFixed(2)}</span>
                   </div>
                   {record.items.map((item, j) => (
-                    <p key={j} style={{ color: "#666", fontSize: 12, margin: "2px 0" }}>
+                    <p key={j} style={{ color: "var(--text-faint)", fontSize: 12, margin: "2px 0" }}>
                       {item.name} x{item.quantity}
                     </p>
                   ))}
-                  <button
-                    onClick={() => undoSale(record)}
-                    style={{ marginTop: 10, background: "rgba(255,0,0,0.15)", color: "#ff4d4d", border: "1px solid rgba(255,0,0,0.3)", padding: "8px 16px", borderRadius: 8, cursor: "pointer", width: "100%" }}
-                  >
+                  <button className="btn btn-danger" style={{ marginTop: 10, width: "100%" }} onClick={() => undoSale(record)}>
                     Undo This Sale
                   </button>
                 </div>
               ))
             )}
-            <button style={{ ...S.btn, width: "100%", marginTop: 10 }} onClick={() => setShowUndo(false)}>Close</button>
+            <button className="btn btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => setShowUndo(false)}>Close</button>
           </div>
         </div>
       )}
 
       {/* OWNER PIN — AUTHORIZE UNDO MODAL */}
       {undoTarget && (
-        <div style={S.overlay} onClick={() => { setUndoTarget(null); setUndoError(""); }}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#ff4d4d", marginBottom: 8 }}>Authorize Undo</h2>
-            <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>
+        <div className="modal-overlay" onClick={() => { setUndoTarget(null); setUndoError(""); }}>
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "#ff8589", marginBottom: 8, fontSize: 19 }}>Authorize Undo</h2>
+            <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
               Undo sale of R{undoTarget.grandTotal.toFixed(2)} from {undoTarget.time}? An owner must enter their PIN to approve this.
             </p>
             <input
+              className="input"
               type="password"
               placeholder="Owner PIN"
               value={ownerPinInput}
               onChange={e => setOwnerPinInput(e.target.value)}
               onKeyDown={e => e.key === "Enter" && confirmUndoWithPin()}
-              style={{ width: "100%", padding: 12, background: "#1A1A1A", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 18, marginBottom: 12, boxSizing: "border-box" as const }}
+              style={{ fontSize: 18, marginBottom: 12 }}
               autoFocus
             />
-            {undoError && <p style={{ color: "#ff4d4d", fontSize: 13, marginBottom: 12 }}>{undoError}</p>}
+            {undoError && <p style={{ color: "#ff8589", fontSize: 13, marginBottom: 12 }}>{undoError}</p>}
             <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={confirmUndoWithPin}
-                disabled={undoSubmitting}
-                style={{ flex: 1, background: "#ff4d4d", color: "#fff", border: "none", padding: "12px 0", borderRadius: 8, fontWeight: 700, cursor: undoSubmitting ? "wait" : "pointer", opacity: undoSubmitting ? 0.7 : 1 }}
-              >
-                {undoSubmitting ? "Checking..." : "Authorize Undo"}
+              <button className="btn btn-danger-solid" style={{ flex: 1 }} disabled={undoSubmitting} onClick={confirmUndoWithPin}>
+                {undoSubmitting ? "Checking…" : "Authorize Undo"}
               </button>
-              <button
-                onClick={() => { setUndoTarget(null); setUndoError(""); }}
-                style={{ flex: 1, background: "#1A1A1A", color: "#aaa", border: "1px solid #333", padding: "12px 0", borderRadius: 8, cursor: "pointer" }}
-              >
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setUndoTarget(null); setUndoError(""); }}>
                 Cancel
               </button>
             </div>
@@ -836,34 +786,28 @@ function confirmCashSale() {
 
       {/* CASH COUNT — MANDATORY AT LOGOUT */}
       {showCashCountModal && (
-        <div style={S.overlay}>
-          <div style={S.modal} onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#d4af37", marginBottom: 8 }}>Count the Drawer</h2>
-            <p style={{ color: "#888", fontSize: 13, marginBottom: 16 }}>
+        <div className="modal-overlay">
+          <div className="modal-box" onClick={e => e.stopPropagation()}>
+            <h2 style={{ color: "var(--gold)", marginBottom: 8, fontSize: 19 }}>Count the Drawer</h2>
+            <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
               Before logging out, enter the exact physical cash currently in the drawer. Count it yourself — this figure is checked against the system separately by the owner.
             </p>
             <input
+              className="input"
               type="number"
               placeholder="Cash counted"
               value={cashCountAmount}
               onChange={e => setCashCountAmount(e.target.value)}
               onKeyDown={e => e.key === "Enter" && submitCashCount()}
-              style={{ width: "100%", padding: 12, background: "#1A1A1A", border: "1px solid #333", borderRadius: 8, color: "#fff", fontSize: 18, marginBottom: 12, boxSizing: "border-box" as const }}
+              style={{ fontSize: 18, marginBottom: 12 }}
               autoFocus
             />
-            {cashCountError && <p style={{ color: "#ff4d4d", fontSize: 13, marginBottom: 12 }}>{cashCountError}</p>}
+            {cashCountError && <p style={{ color: "#ff8589", fontSize: 13, marginBottom: 12 }}>{cashCountError}</p>}
             <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={submitCashCount}
-                disabled={cashCountSubmitting}
-                style={{ flex: 1, background: "#d4af37", color: "#000", border: "none", padding: "12px 0", borderRadius: 8, fontWeight: 700, cursor: cashCountSubmitting ? "wait" : "pointer", opacity: cashCountSubmitting ? 0.7 : 1 }}
-              >
-                {cashCountSubmitting ? "Submitting..." : "Submit & Logout"}
+              <button className="btn btn-primary" style={{ flex: 1 }} disabled={cashCountSubmitting} onClick={submitCashCount}>
+                {cashCountSubmitting ? "Submitting…" : "Submit & Logout"}
               </button>
-              <button
-                onClick={() => setShowCashCountModal(false)}
-                style={{ flex: 1, background: "#1A1A1A", color: "#aaa", border: "1px solid #333", padding: "12px 0", borderRadius: 8, cursor: "pointer" }}
-              >
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowCashCountModal(false)}>
                 Cancel
               </button>
             </div>
