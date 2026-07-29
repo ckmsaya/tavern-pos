@@ -1,4 +1,15 @@
-# Sends a raw byte file straight to a Windows printer's spooler queue as a
+// The actual PowerShell script content, as a string. This is the single
+// source of truth (not the .ps1 file in this folder, which is kept only as
+// a readable reference copy for documentation purposes).
+//
+// It's embedded here — rather than read from disk via __dirname — because
+// when this project is bundled into a standalone .exe (see package.json's
+// build:exe), assets bundled by pkg live in a virtual snapshot filesystem
+// that only Node's own patched fs calls can see. PowerShell is a separate
+// OS process and has no access to that snapshot, so it needs a real file
+// on disk — which server.js creates from this string at startup.
+
+module.exports = `# Sends a raw byte file straight to a Windows printer's spooler queue as a
 # RAW print job, bypassing GDI/driver text rendering. This is what lets ESC/POS
 # control bytes (bold, cut, cash-drawer kick) reach the printer literally
 # instead of being printed as garbage text.
@@ -81,3 +92,4 @@ if ($ok) {
     Write-Error "Failed to send raw data to printer '$PrinterName'. Check the printer name matches exactly what's in Windows Settings > Printers, and that it's online."
     exit 1
 }
+`;

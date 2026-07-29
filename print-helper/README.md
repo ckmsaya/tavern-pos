@@ -1,45 +1,75 @@
 # Tavern Print Helper
 
-A tiny background service that runs on the tavern's PC and does the two
-things a browser cannot do on its own: send raw commands to the USB
-receipt printer, and kick the cash drawer that's wired into it.
+A tiny background program that runs on the tavern's PC and does the two
+things a browser cannot do on its own: send commands to the USB receipt
+printer, and kick the cash drawer wired into it.
 
-The POS web app (running in Chrome/Edge on the same PC) talks to this
-service over `http://localhost:7777` — it never talks to the printer
+The POS web app (running in Chrome/Edge on that same PC) talks to this
+program over `http://localhost:7777` — it never talks to the printer
 directly.
 
-## One-time setup
+It's already built as a single file, **`dist/tavern-print-helper.exe`** —
+no Node.js install needed on the tavern PC, just copy that one file over
+and double-click it.
 
-### 1. Install the printer with the "Generic / Text Only" driver
+---
 
-This matters — a "smart" manufacturer driver will try to interpret the
-raw ESC/POS bytes as text and print garbage. The generic text-only
-driver passes bytes straight through, which is what a receipt printer
-actually wants.
+## Step 1 — On your PC (nothing to build, already done)
 
-1. Plug in the receipt printer via USB, with the cash drawer's cable
-   connected to the port on the back of the printer.
-2. Windows Settings → **Bluetooth & devices → Printers & scanners → Add device**.
-3. If Windows doesn't find it automatically, choose **"Select a shared
-   printer by name"** or **"The printer that I want isn't listed"** →
-   **"Add a local printer or network printer with manual settings"**.
-4. Pick the port it installed on (usually a `USB00x` port).
-5. Under manufacturer, choose **Generic**, and under printer choose
-   **Generic / Text Only**.
-6. Finish setup, and give it a clear name when prompted, e.g.
-   `TavernReceiptPrinter`. **Write this name down exactly** — you'll need
-   it in step 3 below.
+The `.exe` is already built and sitting at:
 
-### 2. Install Node.js (if not already installed)
+```
+print-helper/dist/tavern-print-helper.exe
+```
 
-Download and install the LTS version from nodejs.org. (If you'd rather
-not install Node.js at all, see "Packaging as a standalone .exe" below —
-someone can build that once and you just copy the .exe over instead.)
+Copy that one file onto a USB drive. That's the only file you need to
+bring to the tavern.
 
-### 3. Configure
+*(If you ever change the receipt formatting in `receipt.js` or
+`escpos.js` and need a new build, run `npm install` then
+`npm run build:exe` in this folder — it'll produce a fresh
+`dist/tavern-print-helper.exe`.)*
 
-Open `config.json` in this folder in Notepad and set `printerName` to
-**exactly** the name you gave the printer in step 1:
+## Step 2 — At the tavern PC
+
+### 2.1 Plug everything in
+
+Plug the receipt printer into the PC via USB, with the cash drawer's
+cable plugged into the port on the *back of the printer* (not the PC).
+
+### 2.2 Install the printer with the "Generic / Text Only" driver
+
+This part matters — a "smart" manufacturer driver tries to interpret the
+raw commands we send as text and prints garbage. The generic text-only
+driver passes them straight through, which is what a receipt printer
+actually needs.
+
+1. Windows Settings → **Bluetooth & devices → Printers & scanners → Add device**.
+2. If Windows doesn't find it automatically: **"The printer that I want isn't listed"** → **"Add a local printer or network printer with manual settings"**.
+3. Pick the port it's connected on (usually `USB00x`).
+4. Manufacturer: **Generic**. Printer: **Generic / Text Only**.
+5. When it asks for a printer name, give it something simple and
+   memorable, e.g. `TavernReceiptPrinter`. **Write this down exactly** —
+   capital letters and spacing matter for step 2.4.
+
+### 2.3 Copy the .exe over and run it once
+
+Copy `tavern-print-helper.exe` from your USB drive into any folder on
+the tavern PC (e.g. `C:\TavernPrinter\`). Double-click it.
+
+The first time it runs, it will create a `config.json` file right next
+to itself and then close, printing something like:
+
+```
+No config.json found — created one with default values at:
+  C:\TavernPrinter\config.json
+Edit printerName in that file to match your printer's exact Windows name, then run this again.
+```
+
+### 2.4 Edit the config
+
+Open the new `config.json` (in the same folder as the `.exe`) with
+Notepad, and set `printerName` to **exactly** the name from step 2.2:
 
 ```json
 {
@@ -50,81 +80,52 @@ Open `config.json` in this folder in Notepad and set `printerName` to
 }
 ```
 
-`paperWidth` is the number of text characters that fit on one line —
-`42` for 80mm paper, `32` for 58mm paper. Check your printer/paper roll
-if unsure.
+`paperWidth` is the number of text characters that fit on one receipt
+line — `42` for 80mm paper, `32` for 58mm paper (check your paper roll
+if unsure).
 
-### 4. Install dependencies and run it
+### 2.5 Run it for real
 
-Open a terminal (Command Prompt or PowerShell) in this folder and run:
-
-```
-npm install
-npm start
-```
-
-You should see:
+Double-click `tavern-print-helper.exe` again. This time it should stay
+open and show:
 
 ```
 Tavern print helper listening on http://localhost:7777
 Target printer: "TavernReceiptPrinter"
+Keep this window open while the POS is in use. Press Ctrl+C to stop.
 ```
 
-Leave this window open while the POS is in use — closing it stops
-printing and drawer-opening from working (the rest of the POS keeps
-working fine either way, printing just becomes unavailable).
+**Leave this window open** while the POS is in use — minimize it, don't
+close it. Closing it stops printing/drawer-opening from working (the
+rest of the POS keeps working fine either way; printing just becomes
+unavailable until you reopen it).
 
-### 5. Test it
+### 2.6 Test it
 
-With the service running, open a second terminal and run:
+Open the POS in Chrome or Edge on the tavern PC (the same one you use
+day-to-day) and log in. In the header you should see a **"Printer
+ready"** badge — if it says **"Printer offline"**, the program in step
+2.5 either isn't running or the port doesn't match.
 
-```
-curl http://localhost:7777/health
-```
+Click **Open Drawer** in the header — the drawer should pop open. Then
+ring up a small test sale and confirm a receipt prints and (for a cash
+sale) the drawer opens again automatically.
 
-You should get back `{"ok":true,...}`. Then test the actual hardware:
+If the drawer doesn't open or nothing prints, see Troubleshooting below.
 
-```
-curl -X POST http://localhost:7777/open-drawer
-```
+### 2.7 Make it start automatically on boot (optional but recommended)
 
-The drawer should pop open. If it doesn't, double-check `printerName`
-matches Windows exactly (case and spacing included), and that the
-printer shows as "Ready" in Windows' printer queue.
+Otherwise someone has to remember to double-click it every morning.
 
-## Keeping it running automatically
+1. Press `Win + R`, type `shell:startup`, press Enter.
+2. In that folder, right-click → **New → Shortcut**.
+3. Browse to `tavern-print-helper.exe`, finish.
+4. Next time the PC restarts, it starts automatically (a small window
+   will appear — that's normal, just leave/minimize it).
 
-Right now you have to run `npm start` manually each time. To have it
-start automatically when the PC boots:
+---
 
-1. Press `Win + R`, type `shell:startup`, press Enter — this opens your
-   Startup folder.
-2. Create a shortcut in that folder pointing to a small `.bat` file
-   containing:
-   ```
-   cd /d "C:\path\to\tavern-pos\print-helper"
-   npm start
-   ```
-3. Next time the PC restarts, the helper starts automatically (a
-   terminal window will appear and should be left open/minimized).
-
-## Packaging as a standalone .exe (optional)
-
-If you'd rather not install Node.js on the tavern PC at all, this
-project can be bundled into a single `.exe` on any machine that *does*
-have Node.js (e.g. your own laptop), then just copied over:
-
-```
-npm install
-npm run build:exe
-```
-
-This produces `dist/tavern-print-helper.exe`. Copy that file plus
-`config.json` and `winprint.ps1` to the tavern PC (same folder), edit
-`config.json` there, and double-click the `.exe` to run it — no Node.js
-install needed on the tavern PC itself.
-
-## API (for reference)
+## API (for reference, not needed for normal use)
 
 - `GET /health` — confirms the service is up and shows current config.
 - `POST /open-drawer` — kicks the cash drawer immediately.
@@ -144,15 +145,28 @@ install needed on the tavern PC itself.
 
 ## Troubleshooting
 
-- **Nothing prints, no error**: the printer name in `config.json` almost
-  certainly doesn't match Windows exactly. Check Settings → Printers.
-- **Garbled characters print**: the printer isn't using the "Generic /
-  Text Only" driver — reinstall it per step 1.
-- **`curl` / the POS says it can't reach the helper**: confirm the
-  terminal window running `npm start` is still open, and that
-  `http://localhost:7777/health` responds from a browser tab on the same
-  PC.
+- **Nothing prints, no error, POS says "Printer offline"**: the program
+  from step 2.5 isn't running, or something else is already using port
+  7777. Close and reopen it.
+- **"Printer ready" shows, but nothing actually prints/drawer doesn't
+  open**: the `printerName` in `config.json` almost certainly doesn't
+  match Windows exactly (check Settings → Printers, character for
+  character).
+- **Garbled characters print instead of a receipt**: the printer isn't
+  using the "Generic / Text Only" driver — redo step 2.2.
 - **Drawer doesn't open but receipts print fine**: confirm the drawer's
   cable is actually plugged into the printer's drawer-kick port (not
-  just power), and that the drawer is a passive/RJ11-triggered type (the
-  vast majority are).
+  just its power brick), and that it's a passive/RJ11-triggered drawer
+  (the vast majority are).
+
+## Running from source instead (only if you don't want the .exe)
+
+If you'd rather run it with Node.js installed instead of the `.exe`:
+
+```
+npm install
+npm start
+```
+
+This reads `config.json` from this project folder instead of from next
+to an executable — otherwise it behaves identically.

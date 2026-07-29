@@ -6,9 +6,37 @@ const path = require("path");
 const { execFile } = require("child_process");
 const { formatReceipt } = require("./receipt");
 const { openDrawerBytes } = require("./escpos");
-const config = require("./config.json");
+const winprintScript = require("./winprint-script");
+const defaultConfig = require("./default-config");
+
+// When bundled into a standalone .exe (pkg), __dirname points inside a
+// virtual snapshot filesystem, not a real folder next to the .exe — so
+// config.json needs to live next to the actual executable instead
+// (process.execPath), or edits to it would silently be ignored. In normal
+// `node server.js` dev mode, execPath is just node.exe itself, so we fall
+// back to this project folder instead.
+const isPackaged = Boolean(process.pkg);
+const configDir = isPackaged ? path.dirname(process.execPath) : __dirname;
+const configPath = path.join(configDir, "config.json");
+
+let config;
+if (fs.existsSync(configPath)) {
+  config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+} else {
+  fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2));
+  console.log(`No config.json found — created one with default values at:\n  ${configPath}`);
+  console.log("Edit printerName in that file to match your printer's exact Windows name, then run this again.");
+  process.exit(0);
+}
 
 const app = express();
+
+// winprint-script.js is a plain JS string (not a file read via __dirname)
+// for the same reason config.json needs special handling above: PowerShell
+// is a separate OS process and can't see pkg's virtual snapshot filesystem,
+// so it needs a real file on disk — written out once here at startup.
+const scriptPath = path.join(os.tmpdir(), "tavern-winprint.ps1");
+fs.writeFileSync(scriptPath, winprintScript);
 
 app.use(
   cors({
@@ -27,8 +55,6 @@ function sendRawToPrinter(buffer) {
       reject(err);
       return;
     }
-
-    const scriptPath = path.join(__dirname, "winprint.ps1");
 
     execFile(
       "powershell.exe",
