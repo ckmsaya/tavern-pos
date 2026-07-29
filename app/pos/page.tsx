@@ -35,6 +35,7 @@ const BUSINESS_ID: string | null = null;
 const PRODUCT_CACHE_KEY = "tavern-pos-products";
 const STAFF_CACHE_KEY = "tavern-pos-staff";
 const SALE_QUEUE_KEY = "tavern-pos-pending-sales";
+const PRINT_HELPER_URL = "http://localhost:7777";
 
 interface PendingSale {
   id: string;
@@ -94,12 +95,14 @@ const [amountGiven, setAmountGiven] = useState("");
 
   const [barcode, setBarcode]         = useState("");
   const barcodeRef                    = useRef<HTMLInputElement>(null);
+  const [printerOnline, setPrinterOnline] = useState(false);
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
     setPendingCount(readPendingSales().length);
     fetchStaffName();
     loadProducts();
+    checkPrinterHealth();
 
     const handleOnline = () => {
       setIsOnline(true);
@@ -115,12 +118,108 @@ const [amountGiven, setAmountGiven] = useState("");
       syncPendingSales();
     }
 
+    const printerCheckInterval = setInterval(checkPrinterHealth, 15000);
+
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      clearInterval(printerCheckInterval);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Catches barcode scanner input even when focus isn't on the barcode box —
+  // scanners act like a keyboard typing very fast, then Enter. If the
+  // cashier is typing in any real input (search, amount, PIN, etc.) this
+  // gets out of the way entirely so it never double-handles a real scan or
+  // interferes with normal typing.
+  useEffect(() => {
+    let buffer = "";
+    let lastKeyTime = 0;
+
+    function handleGlobalKeydown(e: KeyboardEvent) {
+      const active = document.activeElement;
+      const isTyping =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLSelectElement;
+      if (isTyping) return;
+
+      const now = Date.now();
+      if (now - lastKeyTime > 100) {
+        buffer = "";
+      }
+      lastKeyTime = now;
+
+      if (e.key === "Enter") {
+        if (buffer.length >= 4) {
+          handleScan(buffer);
+        }
+        buffer = "";
+        return;
+      }
+
+      if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    }
+
+    document.addEventListener("keydown", handleGlobalKeydown);
+    return () => document.removeEventListener("keydown", handleGlobalKeydown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [products]);
+
+  async function checkPrinterHealth() {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const res = await fetch(`${PRINT_HELPER_URL}/health`, { signal: controller.signal });
+      clearTimeout(timeout);
+      setPrinterOnline(res.ok);
+    } catch {
+      setPrinterOnline(false);
+    }
+  }
+
+  async function printReceipt(record: SaleRecord, given?: number, change?: number) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${PRINT_HELPER_URL}/print-receipt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          staffName: record.staffName,
+          time: record.time,
+          items: record.items,
+          grandTotal: record.grandTotal,
+          payment: record.payment,
+          amountGiven: given ?? null,
+          change: change ?? null,
+        }),
+      });
+      clearTimeout(timeout);
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function openDrawer() {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(`${PRINT_HELPER_URL}/open-drawer`, {
+        method: "POST",
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!res.ok) alert("Unable to open the drawer. Is the print helper running?");
+    } catch {
+      alert("Unable to reach the print helper. Is it running on this PC?");
+    }
+  }
 
   async function fetchStaffName() {
     try {
@@ -454,6 +553,12 @@ function confirmCashSale() {
     if (!pending) {
       loadProducts();
     }
+
+    if (!pending) {
+      const given = selectedPayment === "cash" ? Number(amountGiven) || cartTotal : undefined;
+      const change = selectedPayment === "cash" && given !== undefined ? given - cartTotal : undefined;
+      printReceipt(receipt, given, change);
+    }
   }
 
   function undoSale(record: SaleRecord) {
@@ -529,7 +634,12 @@ function confirmCashSale() {
             <span className={styles.statusDot} style={{ background: isOnline ? "var(--green)" : "var(--red)" }} />
             {isOnline ? "Online" : "Offline"}{pendingCount ? ` · ${pendingCount} pending` : ""}
           </span>
+          <span className={styles.statusPill} title={printerOnline ? "Print helper connected" : "Print helper not reachable — receipts won't print and the drawer won't open"}>
+            <span className={styles.statusDot} style={{ background: printerOnline ? "var(--green)" : "var(--red)" }} />
+            {printerOnline ? "Printer ready" : "Printer offline"}
+          </span>
           <span className={styles.staffPill}>👤 {staffName}</span>
+          <button className="btn" onClick={openDrawer}>Open Drawer</button>
           <button className="btn" onClick={() => setShowUndo(true)}>
             Undo History ({undoHistory.length})
           </button>
@@ -672,7 +782,20 @@ function confirmCashSale() {
                 )}
               </div>
             )}
-            <button className="btn btn-primary" style={{ width: "100%" }} onClick={() => setShowReceipt(false)}>Done</button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                className="btn"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  const given = lastReceipt.payment === "cash" && amountGiven ? Number(amountGiven) : undefined;
+                  const change = given !== undefined ? given - lastReceipt.grandTotal : undefined;
+                  printReceipt(lastReceipt, given, change);
+                }}
+              >
+                Reprint
+              </button>
+              <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => setShowReceipt(false)}>Done</button>
+            </div>
           </div>
         </div>
       )}

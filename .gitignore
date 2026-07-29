@@ -2,6 +2,9 @@
 
 # dependencies
 /node_modules
+print-helper/node_modules
+print-helper/dist
+print-helper/*.prn
 /.pnp
 .pnp.*
 .yarn/*

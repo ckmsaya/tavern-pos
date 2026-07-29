@@ -20,6 +20,14 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## In-store hardware (receipt printer / cash drawer)
+
+The POS page can print receipts and open the cash drawer on the tavern's
+USB receipt printer, via a small local helper service that runs on the
+same PC as the browser — see [`print-helper/README.md`](print-helper/README.md)
+for setup. Barcode scanning works out of the box with any standard
+keyboard-wedge USB/Bluetooth scanner; no setup needed there.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
