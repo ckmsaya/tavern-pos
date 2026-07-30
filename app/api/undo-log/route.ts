@@ -44,3 +44,35 @@ export async function GET(req: NextRequest) {
     return jsonError("Unable to load undo log", 500);
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  const limit = rateLimit(clientKey(req, "undo-log-clear"), {
+    limit: 10,
+    windowMs: 60 * 1000,
+  });
+
+  if (limit.limited) {
+    return rateLimitResponse(limit.retryAfter);
+  }
+
+  try {
+    requireOwner(req);
+
+    const supabase = createServiceSupabaseClient();
+    const { error } = await supabase.from("undo_audit_log").delete().not("id", "is", null);
+
+    if (error) {
+      console.error("Undo log clear failed:", error);
+      return jsonError("Unable to clear undo log", 500);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
+
+    console.error("Undo log clear failed:", error);
+    return jsonError("Unable to clear undo log", 500);
+  }
+}

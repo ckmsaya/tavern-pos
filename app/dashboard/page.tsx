@@ -219,6 +219,17 @@ export default function Dashboard() {
     }
   }
 
+  async function clearCashCounts() {
+    if (!confirm("Clear all cash reconciliation history? This cannot be undone.")) return;
+    const res = await fetch("/api/cash-counts", { method: "DELETE" });
+    if (!res.ok) {
+      const result = await res.json();
+      alert(result.error ?? "Unable to clear cash counts");
+      return;
+    }
+    loadCashCounts();
+  }
+
   async function reviewCashCount(id: string | number, status: "confirmed" | "discrepancy") {
     const amountStr = ownerRecount[String(id)] ?? "";
     const ownerAmount = Number(amountStr);
@@ -246,6 +257,28 @@ export default function Dashboard() {
       return next;
     });
     loadCashCounts();
+  }
+
+  async function clearUndoLog() {
+    if (!confirm("Clear the entire undo log? This cannot be undone.")) return;
+    const res = await fetch("/api/undo-log", { method: "DELETE" });
+    if (!res.ok) {
+      const result = await res.json();
+      alert(result.error ?? "Unable to clear undo log");
+      return;
+    }
+    loadUndoLog();
+  }
+
+  async function clearStaffSessions() {
+    if (!confirm("Clear all recorded staff activity? This cannot be undone.")) return;
+    const res = await fetch("/api/staff-sessions", { method: "DELETE" });
+    if (!res.ok) {
+      const result = await res.json();
+      alert(result.error ?? "Unable to clear staff activity");
+      return;
+    }
+    loadStaffSessions();
   }
 
   // ── STAFF MANAGEMENT ──────────────────────────────────────────────────────
@@ -330,6 +363,19 @@ export default function Dashboard() {
     alert("PIN reset successfully");
   }
 
+  async function removeStaff(member: StaffMember) {
+    if (!confirm(`Remove ${member.name} from staff? They will no longer be able to log in.`)) return;
+
+    const res = await fetch(`/api/staff/${member.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const result = await res.json();
+      alert(result.error ?? "Unable to remove staff member");
+      return;
+    }
+
+    loadStaff();
+  }
+
   // ── ADD PRODUCT ───────────────────────────────────────────────────────────
   async function addProduct() {
     if (!newProduct.name || !newProduct.barcode || !newProduct.price || !newProduct.cost_price) {
@@ -359,6 +405,19 @@ export default function Dashboard() {
     } finally {
       setAddLoading(false);
     }
+  }
+
+  async function removeProduct(product: Product) {
+    if (!confirm(`Remove "${product.name}" from inventory? This cannot be undone.`)) return;
+
+    const res = await fetch(`/api/products/${product.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      const result = await res.json();
+      alert(result.error ?? "Unable to remove product");
+      return;
+    }
+
+    load();
   }
 
   // ── RESTOCK (modal) ───────────────────────────────────────────────────────
@@ -588,6 +647,9 @@ export default function Dashboard() {
         <div className={styles.card} style={{ "--accent": profit >= 0 ? "var(--green)" : "var(--red)" } as React.CSSProperties}>
           <p className={styles.cardLabel}>Profit</p><h2 className={styles.cardValue}>R{profit.toFixed(2)}</h2>
         </div>
+        <div className={styles.card} style={{ "--accent": "var(--orange)" } as React.CSSProperties}>
+          <p className={styles.cardLabel}>Cost of Goods Sold</p><h2 className={styles.cardValue}>R{(revenue - profit).toFixed(2)}</h2>
+        </div>
       </div>
 
       {/* ── ACTION BUTTONS ───────────────────────────────────────────────── */}
@@ -637,7 +699,7 @@ export default function Dashboard() {
           <table className={styles.table}>
             <thead>
               <tr>
-                {["Product","Category","Cost","Price","Opening","Stock","Sold","Profit","Restock"].map(h => <th key={h}>{h}</th>)}
+                {["Product","Category","Cost","Price","Opening","Stock","Sold","Profit","Restock","Remove"].map(h => <th key={h}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -659,6 +721,7 @@ export default function Dashboard() {
                     <td>{sold}</td>
                     <td>R{pr.toFixed(2)}</td>
                     <td><button className="btn btn-sm" onClick={() => openRestock(product)}>Restock</button></td>
+                    <td><button className="btn btn-sm btn-danger" onClick={() => removeProduct(product)}>Remove</button></td>
                   </tr>
                 );
               })}
@@ -671,6 +734,9 @@ export default function Dashboard() {
       <div className={styles.section}>
         <div className={styles.sectionHead}>
           <h3 className={styles.sectionTitle}>Cash Reconciliation</h3>
+          {cashCounts.length > 0 && (
+            <button className="btn btn-sm btn-ghost" onClick={clearCashCounts}>Clear History</button>
+          )}
         </div>
         {cashCounts.length === 0 ? (
           <p className={styles.emptyState}>No cash counts submitted yet.</p>
@@ -726,6 +792,9 @@ export default function Dashboard() {
       <div className={styles.section}>
         <div className={styles.sectionHead}>
           <h3 className={styles.sectionTitle}>Undo Log</h3>
+          {undoLog.length > 0 && (
+            <button className="btn btn-sm btn-ghost" onClick={clearUndoLog}>Clear History</button>
+          )}
         </div>
         {undoLog.length === 0 ? (
           <p className={styles.emptyState}>No sales have been undone.</p>
@@ -799,7 +868,10 @@ export default function Dashboard() {
             <div key={member.id} className={styles.listRow}>
               <div className={styles.listRowHead}>
                 <span>{member.name} <span className={styles.metaText}>({member.role})</span></span>
-                <button className="btn btn-sm" onClick={() => openPinReset(member.id)}>Reset PIN</button>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-sm" onClick={() => openPinReset(member.id)}>Reset PIN</button>
+                  <button className="btn btn-sm btn-danger" onClick={() => removeStaff(member)}>Remove</button>
+                </div>
               </div>
               {pinResetTarget === member.id && (
                 <div className={styles.formRow} style={{ marginTop: 10 }}>
@@ -830,7 +902,12 @@ export default function Dashboard() {
       <div className={styles.section}>
         <div className={styles.sectionHead}>
           <h3 className={styles.sectionTitle}>Staff Activity</h3>
-          <span className={styles.sectionHint}>Today</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span className={styles.sectionHint}>Today</span>
+            {staffSessions.length > 0 && (
+              <button className="btn btn-sm btn-ghost" onClick={clearStaffSessions}>Clear History</button>
+            )}
+          </div>
         </div>
         {staffSessions.length === 0 ? (
           <p className={styles.emptyState}>No staff activity recorded today.</p>

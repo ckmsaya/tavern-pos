@@ -8,6 +8,7 @@ import {
   requireOwner,
 } from "@/lib/api-security";
 import { getStaffSessionsReport } from "@/lib/staff-sessions";
+import { createServiceSupabaseClient } from "@/lib/server-supabase";
 
 export async function GET(req: NextRequest) {
   const limit = rateLimit(clientKey(req, "staff-sessions-list"), {
@@ -35,5 +36,37 @@ export async function GET(req: NextRequest) {
 
     console.error("Staff sessions fetch failed:", error);
     return jsonError("Unable to load staff sessions", 500);
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const limit = rateLimit(clientKey(req, "staff-sessions-clear"), {
+    limit: 10,
+    windowMs: 60 * 1000,
+  });
+
+  if (limit.limited) {
+    return rateLimitResponse(limit.retryAfter);
+  }
+
+  try {
+    requireOwner(req);
+
+    const supabase = createServiceSupabaseClient();
+    const { error } = await supabase.from("staff_sessions").delete().not("id", "is", null);
+
+    if (error) {
+      console.error("Staff sessions clear failed:", error);
+      return jsonError("Unable to clear staff activity", 500);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
+
+    console.error("Staff sessions clear failed:", error);
+    return jsonError("Unable to clear staff activity", 500);
   }
 }

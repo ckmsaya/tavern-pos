@@ -120,3 +120,35 @@ export async function POST(req: NextRequest) {
     return jsonError("Unable to submit cash count", 500);
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  const limit = rateLimit(clientKey(req, "cash-counts-clear"), {
+    limit: 10,
+    windowMs: 60 * 1000,
+  });
+
+  if (limit.limited) {
+    return rateLimitResponse(limit.retryAfter);
+  }
+
+  try {
+    requireOwner(req);
+
+    const supabase = createServiceSupabaseClient();
+    const { error } = await supabase.from("cash_counts").delete().not("id", "is", null);
+
+    if (error) {
+      console.error("Cash counts clear failed:", error);
+      return jsonError("Unable to clear cash counts", 500);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (error instanceof AuthError) {
+      return jsonError(error.message, error.status);
+    }
+
+    console.error("Cash counts clear failed:", error);
+    return jsonError("Unable to clear cash counts", 500);
+  }
+}

@@ -1,6 +1,12 @@
 @import "tailwindcss";
 
 :root {
+  /* This app is dark-themed only — no light variant exists. Without this,
+     some browsers (notably on Windows set to a light OS theme) render native
+     form controls like <select> dropdown popups using light system colors
+     regardless of our CSS, making light text on our dark boxes invisible. */
+  color-scheme: dark;
+
   --background: #08080a;
   --foreground: #f2efe9;
 
@@ -227,6 +233,11 @@ select.input {
   border-color: var(--gold-border-strong);
   background: rgba(255, 255, 255, 0.05);
   box-shadow: 0 0 0 3px var(--gold-soft);
+}
+.input option,
+select.input option {
+  background: var(--surface-2);
+  color: var(--text-primary);
 }
 
 /* ── Surfaces / Cards ───────────────────────────────────────────────────── */
