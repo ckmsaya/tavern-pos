@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { buildDailyReportPDF } from "@/lib/daily-report-pdf";
 import { getTodayReportData } from "@/lib/report-data";
+import { sendDailyReportEmail } from "@/lib/gmail";
 
 export const maxDuration = 30;
 
-function getBaseUrl() {
-  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
-  return host ? `https://${host}` : "http://localhost:3000";
-}
-
-// Triggered by Vercel Cron (see vercel.json) once a day. Sends the day's
-// PDF report as a WhatsApp document attachment, replacing the old
-// per-product low-stock text alerts.
+// Triggered by Vercel Cron (see vercel.json) once a day. Emails the day's
+// PDF report via Gmail, replacing the old Twilio WhatsApp delivery.
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
@@ -22,11 +17,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const data = await getTodayReportData();
-    const pdfUrl = `${getBaseUrl()}/api/cron/daily-report/pdf?token=${encodeURIComponent(cronSecret)}`;
+    const pdf = await buildDailyReportPDF(data);
 
-    await sendWhatsAppMessage({
-      body: `Tavern Daily Report — ${data.date}\nRevenue: R${data.revenue.toFixed(2)} | Profit: R${data.profit.toFixed(2)}`,
-      mediaUrl: [pdfUrl],
+    await sendDailyReportEmail({
+      date: data.date,
+      revenue: data.revenue,
+      profit: data.profit,
+      pdf,
     });
 
     return NextResponse.json({ success: true, date: data.date });
