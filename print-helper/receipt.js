@@ -23,9 +23,10 @@ function padLine(left, right, width) {
   return left + " ".repeat(space) + right;
 }
 
-function formatReceipt(data, width) {
+function formatReceipt(data, width, businessName = "") {
   const {
     staffName = "",
+    date = "",
     time = new Date().toLocaleString(),
     items = [],
     grandTotal = 0,
@@ -38,9 +39,12 @@ function formatReceipt(data, width) {
   chunks.push(init());
   chunks.push(alignCenter());
   chunks.push(doubleOn());
-  chunks.push(line("TAVERN"));
+  chunks.push(line("Tillflow"));
   chunks.push(doubleOff());
-  chunks.push(line(String(time)));
+  if (businessName) {
+    chunks.push(line(businessName));
+  }
+  chunks.push(line(date ? `${date} ${time}` : String(time)));
   chunks.push(line(`Served by: ${staffName}`));
   chunks.push(alignLeft());
   chunks.push(line("-".repeat(width)));

@@ -5,5 +5,6 @@ module.exports = {
   port: 7777,
   printerName: "POS-80",
   paperWidth: 42,
+  businessName: "Grace Tavern",
   allowedOrigins: ["*"],
 };

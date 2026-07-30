@@ -79,7 +79,7 @@ app.get("/health", (req, res) => {
 
 app.post("/print-receipt", async (req, res) => {
   try {
-    const buffer = formatReceipt(req.body ?? {}, config.paperWidth || 42);
+    const buffer = formatReceipt(req.body ?? {}, config.paperWidth || 42, config.businessName || "");
     await sendRawToPrinter(buffer);
     res.json({ success: true });
   } catch (err) {

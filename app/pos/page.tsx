@@ -27,6 +27,7 @@ interface SaleRecord {
   grandTotal: number;
   payment: string;
   staffName: string;
+  date: string;
   time: string;
   pending?: boolean;
 }
@@ -191,6 +192,7 @@ const [amountGiven, setAmountGiven] = useState("");
         signal: controller.signal,
         body: JSON.stringify({
           staffName: record.staffName,
+          date: record.date,
           time: record.time,
           items: record.items,
           grandTotal: record.grandTotal,
@@ -542,6 +544,7 @@ function confirmCashSale() {
       grandTotal: cartTotal,
       payment: selectedPayment,
       staffName,
+      date:       new Date().toLocaleDateString(),
       time:       new Date().toLocaleTimeString(),
       pending,
     };
