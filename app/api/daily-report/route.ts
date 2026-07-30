@@ -9,7 +9,7 @@ import {
   requireOwner,
   RequestBodyError,
 } from "@/lib/api-security";
-import { buildDailyReportPDF, ReportData, ReportProduct, ReportStaff, ReportSale, ReportStaffSession } from "@/lib/daily-report-pdf";
+import { buildDailyReportPDF, ReportData, ReportProduct, ReportStaff, ReportSale, ReportStaffSession, ReportCashCount, ReportUndoEntry } from "@/lib/daily-report-pdf";
 
 function n(v: unknown): number { return Number(v) || 0; }
 
@@ -27,6 +27,8 @@ function validateReportData(value: unknown): ReportData {
   const staff = Array.isArray(data.staff) ? data.staff.slice(0, 100) : [];
   const sales = Array.isArray(data.sales) ? data.sales.slice(0, 1000) : [];
   const staffSessions = Array.isArray(data.staffSessions) ? data.staffSessions.slice(0, 200) : [];
+  const cashCounts = Array.isArray(data.cashCounts) ? data.cashCounts.slice(0, 200) : [];
+  const undoLog = Array.isArray(data.undoLog) ? data.undoLog.slice(0, 200) : [];
 
   return {
     date: /^\d{4}-\d{2}-\d{2}$/.test(text(data.date, 10))
@@ -70,6 +72,27 @@ function validateReportData(value: unknown): ReportData {
         hoursWorked: n(session.hoursWorked),
         itemsSold: n(session.itemsSold),
         moneyMade: n(session.moneyMade),
+      };
+    }),
+    cashCounts: cashCounts.map((item) => {
+      const count = item as Partial<ReportCashCount>;
+      return {
+        created_at: text(count.created_at, 40),
+        staff_name: text(count.staff_name),
+        counted_amount: n(count.counted_amount),
+        expected_cash: n(count.expected_cash),
+        status: text(count.status, 20) || "pending",
+        owner_amount: count.owner_amount === null || count.owner_amount === undefined ? null : n(count.owner_amount),
+      };
+    }),
+    undoLog: undoLog.map((item) => {
+      const entry = item as Partial<ReportUndoEntry>;
+      return {
+        created_at: text(entry.created_at, 40),
+        staff_name: text(entry.staff_name),
+        undone_by: text(entry.undone_by),
+        approved_by: text(entry.approved_by),
+        total: n(entry.total),
       };
     }),
   };

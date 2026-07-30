@@ -29,12 +29,19 @@ export async function GET(req: NextRequest) {
   try {
     requireOwner(req);
 
+    const { searchParams } = new URL(req.url);
+    const since = searchParams.get("since");
+
     const supabase = createServiceSupabaseClient();
-    const { data, error } = await supabase
-      .from("cash_counts")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(30);
+    let query = supabase.from("cash_counts").select("*");
+
+    if (since) {
+      query = query.gte("created_at", since).order("created_at", { ascending: true });
+    } else {
+      query = query.order("created_at", { ascending: false }).limit(30);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Cash counts fetch failed:", error);

@@ -479,12 +479,16 @@ export default function Dashboard() {
     setReportLoading(true);
     try {
       const today = new Date().toISOString().split("T")[0];
-      const [salesRes, sessionsRes] = await Promise.all([
+      const [salesRes, sessionsRes, cashCountsRes, undoLogRes] = await Promise.all([
         fetch(`/api/sales?since=${today}`),
         fetch(`/api/staff-sessions?since=${today}`),
+        fetch(`/api/cash-counts?since=${today}`),
+        fetch(`/api/undo-log?since=${today}`),
       ]);
       const { sales: allSales } = await salesRes.json() as { sales: Sale[] | null };
       const { sessions: staffSessions } = await sessionsRes.json() as { sessions: unknown[] | null };
+      const { counts: cashCounts } = await cashCountsRes.json() as { counts: unknown[] | null };
+      const { entries: undoLog } = await undoLogRes.json() as { entries: unknown[] | null };
       const allSalesData: Sale[] = allSales ?? [];
 
       let r = 0;
@@ -522,6 +526,8 @@ export default function Dashboard() {
         profit: totalProfit, staff: staffArray,
         products: productsWithSold, sales: allSalesData,
         staffSessions: staffSessions ?? [],
+        cashCounts: cashCounts ?? [],
+        undoLog: undoLog ?? [],
       };
 
       const res = await fetch("/api/daily-report", {

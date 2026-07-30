@@ -10,17 +10,34 @@ export async function getTodayReportData(): Promise<ReportData> {
   const date = todayDateString();
   const supabase = createServiceSupabaseClient();
 
-  const [{ data: products, error: productsError }, { data: sales, error: salesError }] = await Promise.all([
+  const [
+    { data: products, error: productsError },
+    { data: sales, error: salesError },
+    { data: cashCounts, error: cashCountsError },
+    { data: undoLog, error: undoLogError },
+  ] = await Promise.all([
     supabase.from("products").select("name, category, price, cost_price, opening_stock, stock"),
     supabase
       .from("sales")
       .select("total, payment_method, staff_name, created_at")
       .gte("created_at", date)
       .order("created_at", { ascending: true }),
+    supabase
+      .from("cash_counts")
+      .select("created_at, staff_name, counted_amount, expected_cash, status, owner_amount")
+      .gte("created_at", date)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("undo_audit_log")
+      .select("created_at, staff_name, undone_by, approved_by, total")
+      .gte("created_at", date)
+      .order("created_at", { ascending: true }),
   ]);
 
   if (productsError) throw productsError;
   if (salesError) throw salesError;
+  if (cashCountsError) throw cashCountsError;
+  if (undoLogError) throw undoLogError;
 
   const salesList = sales ?? [];
   const productList = products ?? [];
@@ -74,5 +91,20 @@ export async function getTodayReportData(): Promise<ReportData> {
       staff_name: s.staff_name,
     })),
     staffSessions,
+    cashCounts: (cashCounts ?? []).map((c) => ({
+      created_at: c.created_at,
+      staff_name: c.staff_name,
+      counted_amount: Number(c.counted_amount) || 0,
+      expected_cash: Number(c.expected_cash) || 0,
+      status: c.status,
+      owner_amount: c.owner_amount === null ? null : Number(c.owner_amount) || 0,
+    })),
+    undoLog: (undoLog ?? []).map((u) => ({
+      created_at: u.created_at,
+      staff_name: u.staff_name,
+      undone_by: u.undone_by,
+      approved_by: u.approved_by,
+      total: Number(u.total) || 0,
+    })),
   };
 }
