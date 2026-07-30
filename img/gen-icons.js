@@ -3,10 +3,10 @@ const path = require("path");
 
 const ROOT = path.resolve(__dirname, "..");
 const SOURCE = path.join(__dirname, "tillflow_logo.png");
-const MARK_CROP = { left: 110, top: 60, width: 260, height: 155 };
+const MARK_SVG = path.join(__dirname, "mark.svg");
 
 const DARK_BG = "#0a0a0a";
-const INNER_BG = "#1c1919"; // matches the source artwork's own badge background so the mark crop blends in seamlessly
+const INNER_BG = "#1c1919";
 const GOLD = "#d4af37";
 
 function squircleSvg(size) {
@@ -22,25 +22,13 @@ function squircleSvg(size) {
   `);
 }
 
-async function keyOutWhite(input) {
-  // The source PNG has no alpha channel and the mark crop's corners fall
-  // outside the artwork's circular badge, landing on its white canvas —
-  // chroma-key those near-white pixels to transparent so the mark can be
-  // composited cleanly onto our own dark icon background.
-  const { data, info } = await sharp(input).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i] > 225 && data[i + 1] > 225 && data[i + 2] > 225) {
-      data[i + 3] = 0;
-    }
-  }
-  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
-}
-
 async function buildMarkIcon(size, outPath) {
   const bg = await sharp(squircleSvg(size)).png().toBuffer();
-  const markSize = Math.round(size * 0.62);
-  const keyed = await keyOutWhite(await sharp(SOURCE).extract(MARK_CROP).png().toBuffer());
-  const mark = await sharp(keyed)
+  const markSize = Math.round(size * 0.66);
+  // mark.svg is vector, rendered at a high density so it stays crisp at
+  // every output size instead of upscaling a small raster crop (which is
+  // what caused the earlier blur + stray white fringe).
+  const mark = await sharp(MARK_SVG, { density: (markSize / 200) * 96 })
     .resize(markSize, markSize, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } })
     .png()
     .toBuffer();

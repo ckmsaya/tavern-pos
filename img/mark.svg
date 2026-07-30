@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f3d98a"/>
+      <stop offset="55%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#9c7a1f"/>
+    </linearGradient>
+    <linearGradient id="ribbonGrad" x1="0" y1="0" x2="1" y2="0.15">
+      <stop offset="0%" stop-color="#8a6c1a"/>
+      <stop offset="35%" stop-color="#f0d878"/>
+      <stop offset="70%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#b3901f"/>
+    </linearGradient>
+    <linearGradient id="loopGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6e5512"/>
+      <stop offset="100%" stop-color="#a3801f"/>
+    </linearGradient>
+  </defs>
+
+  <!-- bars -->
+  <rect x="52" y="100" width="22" height="55" rx="2" fill="url(#barGrad)"/>
+  <rect x="89" y="74" width="22" height="81" rx="2" fill="url(#barGrad)"/>
+  <rect x="126" y="46" width="22" height="109" rx="2" fill="url(#barGrad)"/>
+
+  <!-- loop: the ribbon curling back on itself at the left end -->
+  <path d="M 40,148
+           C 30,140 22,142 18,150
+           C 15,157 20,163 30,162
+           C 40,161 46,155 40,148 Z" fill="url(#loopGrad)"/>
+
+  <!-- main ribbon sweep, crossing in front of the bars -->
+  <path d="M 20,158
+           C 34,168 52,166 70,152
+           C 92,134 112,118 132,104
+           C 150,92 165,85 182,80
+           L 180,92
+           C 164,97 150,104 133,116
+           C 113,130 93,146 72,163
+           C 52,178 32,178 16,166
+           Z" fill="url(#ribbonGrad)"/>
+</svg>
