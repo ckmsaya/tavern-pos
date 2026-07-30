@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import styles from "./pos.module.css";
 
 interface Product {
@@ -631,7 +632,10 @@ function confirmCashSale() {
 
       {/* HEADER */}
       <div className={styles.header}>
-        <div className={styles.brandTitle}>TAVERN POS</div>
+        <div className={styles.brandGroup}>
+          <Image src="/logo-mark.png" alt="TillFlow" width={36} height={36} className={styles.brandLogo} />
+          <div className={styles.brandTitle}>TAVERN POS</div>
+        </div>
         <div className={styles.headerRight}>
           <span className={styles.statusPill}>
             <span className={styles.statusDot} style={{ background: isOnline ? "var(--green)" : "var(--red)" }} />

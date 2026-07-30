@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import styles from "./login.module.css";
 
 export default function Login() {
@@ -44,7 +45,14 @@ export default function Login() {
     <div className={styles.container}>
       <div className={styles.card}>
         <div className={styles.brand}>
-          <div className={styles.brandMark}>TAVERN</div>
+          <Image
+            src="/logo.png"
+            alt="TillFlow"
+            width={112}
+            height={112}
+            className={styles.brandLogo}
+            priority
+          />
           <div className={styles.subtitle}>Staff Login</div>
         </div>
 

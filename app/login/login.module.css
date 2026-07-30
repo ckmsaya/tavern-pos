@@ -32,17 +32,15 @@
 .brand {
   text-align: center;
   margin-bottom: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.brandMark {
-  font-family: var(--font-display, Georgia, serif);
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  background: linear-gradient(155deg, var(--gold-light), var(--gold) 55%, var(--gold-dark));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+.brandLogo {
+  border-radius: 50%;
+  box-shadow: 0 8px 28px rgba(212, 175, 55, 0.22);
+  margin-bottom: 4px;
 }
 
 .subtitle {

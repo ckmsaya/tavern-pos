@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import styles from "./dashboard.module.css";
 
 import {
@@ -579,9 +580,12 @@ export default function Dashboard() {
 
       {/* ── HEADER ────────────────────────────────────────────────────────── */}
       <div className={styles.header}>
-        <div>
-          <div className={styles.brandTitle}>Tavern Dashboard</div>
-          <div className={styles.brandSubtitle}>Owner Control Centre</div>
+        <div className={styles.brandGroup}>
+          <Image src="/logo-mark.png" alt="TillFlow" width={44} height={44} className={styles.brandLogo} />
+          <div>
+            <div className={styles.brandTitle}>Tavern Dashboard</div>
+            <div className={styles.brandSubtitle}>Owner Control Centre</div>
+          </div>
         </div>
         <button className="btn btn-ghost" onClick={logout}>Logout</button>
       </div>

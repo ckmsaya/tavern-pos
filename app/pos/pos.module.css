@@ -27,6 +27,17 @@
   flex-wrap: wrap;
 }
 
+.brandGroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brandLogo {
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
 .brandTitle {
   font-family: var(--font-display, Georgia, serif);
   font-size: clamp(20px, 3vw, 26px);
