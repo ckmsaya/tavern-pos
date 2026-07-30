@@ -113,15 +113,30 @@ sale) the drawer opens again automatically.
 
 If the drawer doesn't open or nothing prints, see Troubleshooting below.
 
-### 2.7 Make it start automatically on boot (optional but recommended)
+### 2.7 Make it start automatically on boot (recommended)
 
 Otherwise someone has to remember to double-click it every morning.
 
-1. Press `Win + R`, type `shell:startup`, press Enter.
-2. In that folder, right-click → **New → Shortcut**.
-3. Browse to `tavern-print-helper.exe`, finish.
-4. Next time the PC restarts, it starts automatically (a small window
-   will appear — that's normal, just leave/minimize it).
+**Recommended: Task Scheduler** — runs completely hidden (no window
+anyone could accidentally close) and can auto-restart if it ever crashes.
+
+1. Press `Win`, type **Task Scheduler**, open it.
+2. Right panel → **Create Task...** (not "Create Basic Task").
+3. **General** tab: name it `Tavern Print Helper`. Check **"Run whether
+   user is logged on or not"**.
+4. **Triggers** tab → New → Begin the task: **"At startup"**.
+5. **Actions** tab → New → Start a program → browse to
+   `tavern-print-helper.exe` → set "Start in" to the folder it's in.
+6. **Conditions** tab: uncheck "Start the task only if the computer is
+   on AC power".
+7. **Settings** tab: check "If the task fails, restart every **1
+   minute**", up to **3 times**.
+8. Click OK — Windows will ask for the account password (needed for step
+   3). Enter it, then test with right-click the task → **Run**.
+
+**Simpler alternative**: `Win + R` → `shell:startup` → new shortcut to
+`tavern-print-helper.exe`. No password needed, but a console window
+appears on every boot that could get accidentally closed.
 
 ---
 
