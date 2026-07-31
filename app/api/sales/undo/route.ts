@@ -13,7 +13,6 @@ import { createServiceSupabaseClient } from "@/lib/server-supabase";
 
 type UndoBody = {
   saleIds?: unknown;
-  ownerPin?: unknown;
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,18 +27,6 @@ export async function POST(req: NextRequest) {
     return rateLimitResponse(limit.retryAfter);
   }
 
-  // Separate, stricter limit on the owner-PIN check itself, matching the
-  // login route's pattern — this endpoint is a second PIN-brute-force
-  // surface now that it accepts one.
-  const pinLimit = rateLimit(clientKey(req, "sales-undo-pin"), {
-    limit: 5,
-    windowMs: 5 * 60 * 1000,
-  });
-
-  if (pinLimit.limited) {
-    return rateLimitResponse(pinLimit.retryAfter);
-  }
-
   try {
     const staff = requireStaffSession(req);
 
@@ -47,26 +34,12 @@ export async function POST(req: NextRequest) {
     const saleIds = Array.isArray(body.saleIds)
       ? body.saleIds.filter((id): id is string => typeof id === "string" && UUID_RE.test(id)).slice(0, 50)
       : [];
-    const ownerPin = typeof body.ownerPin === "string" ? body.ownerPin.trim() : "";
 
     if (!saleIds.length) {
       return jsonError("No valid sale ids provided");
     }
 
-    if (!/^\d{4,12}$/.test(ownerPin)) {
-      return jsonError("Owner PIN required", 403);
-    }
-
     const supabase = createServiceSupabaseClient();
-
-    const { data: ownerMatch, error: pinError } = await supabase
-      .rpc("verify_staff_pin", { input_pin: ownerPin, input_business_id: null });
-
-    if (pinError || !ownerMatch || ownerMatch.length === 0 || ownerMatch[0].role !== "owner") {
-      return jsonError("Invalid owner PIN", 403);
-    }
-
-    const approvedBy = ownerMatch[0].name;
 
     const { data: sales, error: fetchError } = await supabase
       .from("sales")
@@ -76,6 +49,17 @@ export async function POST(req: NextRequest) {
     if (fetchError) {
       console.error("Undo lookup failed:", fetchError);
       return jsonError("Unable to undo sale", 500);
+    }
+
+    // Without an owner PIN gate, this is the one real-time guard left: a
+    // regular staff member may only undo their own sales. Owners can still
+    // undo anyone's — the undo_audit_log below is what keeps everything
+    // accountable after the fact.
+    if (staff.role !== "owner") {
+      const foreign = (sales ?? []).some((sale) => sale.staff_name !== staff.name);
+      if (foreign) {
+        return jsonError("You can only undo your own sales", 403);
+      }
     }
 
     for (const sale of sales ?? []) {
@@ -108,7 +92,7 @@ export async function POST(req: NextRequest) {
           total: sale.total,
           staff_name: sale.staff_name,
           undone_by: staff.name,
-          approved_by: approvedBy,
+          approved_by: null,
         }))
       );
 

@@ -51,7 +51,7 @@ type UndoLogEntry = {
   total: number;
   staff_name: string;
   undone_by: string;
-  approved_by: string;
+  approved_by: string | null;
   created_at: string;
 };
 
@@ -79,6 +79,7 @@ type StaffSession = {
   hoursWorked: number;
   itemsSold: number;
   moneyMade: number;
+  moneyCounted: number | null;
 };
 
 export default function Dashboard() {
@@ -822,7 +823,7 @@ export default function Dashboard() {
                     <td>{new Date(entry.created_at).toLocaleString()}</td>
                     <td>{entry.staff_name}</td>
                     <td>{entry.undone_by}</td>
-                    <td>{entry.approved_by}</td>
+                    <td>{entry.approved_by || "—"}</td>
                     <td>R{Number(entry.total).toFixed(2)}</td>
                   </tr>
                 ))}
@@ -880,7 +881,9 @@ export default function Dashboard() {
                 <span>{member.name} <span className={styles.metaText}>({member.role})</span></span>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn btn-sm" onClick={() => openPinReset(member.id)}>Reset PIN</button>
-                  <button className="btn btn-sm btn-danger" onClick={() => removeStaff(member)}>Remove</button>
+                  {member.role !== "owner" && (
+                    <button className="btn btn-sm btn-danger" onClick={() => removeStaff(member)}>Remove</button>
+                  )}
                 </div>
               </div>
               {pinResetTarget === member.id && (
@@ -926,7 +929,7 @@ export default function Dashboard() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  {["Staff", "Login", "Logout", "Hours", "Items Sold", "Money Made"].map(h => <th key={h}>{h}</th>)}
+                  {["Staff", "Login", "Logout", "Hours", "Items Sold", "Money Made", "Money Counted"].map(h => <th key={h}>{h}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -938,6 +941,7 @@ export default function Dashboard() {
                     <td>{session.hoursWorked.toFixed(1)}</td>
                     <td>{session.itemsSold}</td>
                     <td>R{session.moneyMade.toFixed(2)}</td>
+                    <td>{session.moneyCounted === null ? "—" : `R${session.moneyCounted.toFixed(2)}`}</td>
                   </tr>
                 ))}
               </tbody>

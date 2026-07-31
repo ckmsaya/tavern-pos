@@ -54,17 +54,26 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    requireStaffSession(req);
+    const staff = requireStaffSession(req);
 
     const { searchParams } = new URL(req.url);
     const businessId = searchParams.get("businessId");
     const since = searchParams.get("since");
+    const staffNameParam = searchParams.get("staffName");
 
     const supabase = createServiceSupabaseClient();
     let query = supabase.from("sales").select("*").order("created_at", { ascending: false });
 
     if (businessId) query = query.eq("business_id", businessId);
     if (since) query = query.gte("created_at", since);
+
+    // Non-owners can only ever see their own sales, regardless of what's
+    // passed — the POS undo list relies on this to stay self-scoped without
+    // needing to prove anything client-side. Owners may filter by any name.
+    const effectiveStaffName = staff.role === "owner"
+      ? (staffNameParam?.trim().slice(0, 120) || null)
+      : staff.name;
+    if (effectiveStaffName) query = query.eq("staff_name", effectiveStaffName);
 
     const { data, error } = await query;
 

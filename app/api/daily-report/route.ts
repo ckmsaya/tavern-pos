@@ -72,6 +72,7 @@ function validateReportData(value: unknown): ReportData {
         hoursWorked: n(session.hoursWorked),
         itemsSold: n(session.itemsSold),
         moneyMade: n(session.moneyMade),
+        moneyCounted: session.moneyCounted === null || session.moneyCounted === undefined ? null : n(session.moneyCounted),
       };
     }),
     cashCounts: cashCounts.map((item) => {

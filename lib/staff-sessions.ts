@@ -31,6 +31,19 @@ export async function getStaffSessionsReport(since: string): Promise<ReportStaff
     const moneyMade = (sales ?? []).reduce((sum, s) => sum + (Number(s.total) || 0), 0);
     const hoursWorked = (new Date(windowEnd).getTime() - new Date(session.login_at).getTime()) / (1000 * 60 * 60);
 
+    const { data: cashCounts, error: cashCountsError } = await supabase
+      .from("cash_counts")
+      .select("counted_amount")
+      .eq("staff_name", session.staff_name)
+      .gte("created_at", session.login_at)
+      .lte("created_at", windowEnd)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (cashCountsError) throw cashCountsError;
+
+    const moneyCounted = cashCounts?.length ? Number(cashCounts[0].counted_amount) : null;
+
     results.push({
       staffName: session.staff_name,
       loginAt: session.login_at,
@@ -38,6 +51,7 @@ export async function getStaffSessionsReport(since: string): Promise<ReportStaff
       hoursWorked,
       itemsSold,
       moneyMade,
+      moneyCounted,
     });
   }
 

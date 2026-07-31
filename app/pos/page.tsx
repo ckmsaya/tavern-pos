@@ -37,7 +37,17 @@ const BUSINESS_ID: string | null = null;
 const PRODUCT_CACHE_KEY = "tavern-pos-products";
 const STAFF_CACHE_KEY = "tavern-pos-staff";
 const SALE_QUEUE_KEY = "tavern-pos-pending-sales";
+const PRINT_ENABLED_KEY = "tavern-pos-print-enabled";
 const PRINT_HELPER_URL = "http://localhost:7777";
+
+interface UndoableSale {
+  id: string;
+  product_id: string | null;
+  quantity: number;
+  total: number;
+  payment_method: string;
+  created_at: string;
+}
 
 interface PendingSale {
   id: string;
@@ -67,6 +77,24 @@ function writePendingSales(sales: PendingSale[]) {
   localStorage.setItem(SALE_QUEUE_KEY, JSON.stringify(sales));
 }
 
+function readPrintEnabled(): boolean {
+  if (typeof window === "undefined") return true;
+
+  try {
+    return localStorage.getItem(PRINT_ENABLED_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function writePrintEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(PRINT_ENABLED_KEY, enabled ? "1" : "0");
+  } catch {
+    // ignore — worst case the preference doesn't persist across reloads
+  }
+}
+
 export default function POS({ businessId }: { businessId?: string }) {
   const router = useRouter();
   const BIZ_ID = businessId ?? BUSINESS_ID;
@@ -80,12 +108,12 @@ const [showCashModal, setShowCashModal] = useState(false);
   const [category, setCategory]       = useState("all");
   const [cart, setCart]               = useState<CartItem[]>([]);
   const [payment, setPayment]         = useState<"cash" | "card">("cash");
-  const [undoHistory, setUndoHistory] = useState<SaleRecord[]>([]);
   const [showUndo, setShowUndo]       = useState(false);
-  const [undoTarget, setUndoTarget]   = useState<SaleRecord | null>(null);
-  const [ownerPinInput, setOwnerPinInput] = useState("");
-  const [undoError, setUndoError]     = useState("");
+  const [myLoginAt, setMyLoginAt]     = useState<string | null>(null);
+  const [undoableSales, setUndoableSales] = useState<UndoableSale[]>([]);
+  const [selectedUndoIds, setSelectedUndoIds] = useState<Set<string>>(new Set());
   const [undoSubmitting, setUndoSubmitting] = useState(false);
+  const [printEnabled, setPrintEnabled] = useState(true);
 
   const [showCashCountModal, setShowCashCountModal] = useState(false);
   const [cashCountAmount, setCashCountAmount]       = useState("");
@@ -102,6 +130,7 @@ const [amountGiven, setAmountGiven] = useState("");
   useEffect(() => {
     setIsOnline(navigator.onLine);
     setPendingCount(readPendingSales().length);
+    setPrintEnabled(readPrintEnabled());
     fetchStaffName();
     loadProducts();
     checkPrinterHealth();
@@ -209,6 +238,14 @@ const [amountGiven, setAmountGiven] = useState("");
     }
   }
 
+  function togglePrintEnabled() {
+    setPrintEnabled(prev => {
+      const next = !prev;
+      writePrintEnabled(next);
+      return next;
+    });
+  }
+
   async function openDrawer() {
     try {
       const controller = new AbortController();
@@ -232,6 +269,7 @@ const [amountGiven, setAmountGiven] = useState("");
         if (cached) {
           const data = JSON.parse(cached);
           if (data.name) setStaffName(data.name);
+          setMyLoginAt(data.loginAt ?? null);
           return;
         }
 
@@ -243,12 +281,14 @@ const [amountGiven, setAmountGiven] = useState("");
       if (data.name) {
         localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(data));
         setStaffName(data.name);
+        setMyLoginAt(data.loginAt ?? null);
       }
     } catch {
       const cached = localStorage.getItem(STAFF_CACHE_KEY);
       if (cached) {
         const data = JSON.parse(cached);
         if (data.name) setStaffName(data.name);
+        setMyLoginAt(data.loginAt ?? null);
         return;
       }
 
@@ -550,7 +590,6 @@ function confirmCashSale() {
       pending,
     };
 
-    setUndoHistory(prev => [receipt, ...prev].slice(0, 10));
     setLastReceipt(receipt);
     setShowReceipt(true);
     setCart([]);
@@ -561,57 +600,87 @@ function confirmCashSale() {
     if (!pending) {
       const given = selectedPayment === "cash" ? Number(amountGiven) || cartTotal : undefined;
       const change = selectedPayment === "cash" && given !== undefined ? given - cartTotal : undefined;
-      printReceipt(receipt, given, change);
+      if (printEnabled) {
+        printReceipt(receipt, given, change);
+      } else if (selectedPayment === "cash") {
+        // Printing is off to save paper, but the drawer still needs to kick
+        // for a cash sale — normally that happens as a side effect of the
+        // receipt print job, so open it directly instead.
+        openDrawer();
+      }
     }
   }
 
-  function undoSale(record: SaleRecord) {
-    if (record.pending) {
-      alert("This sale is still waiting to sync. It cannot be undone yet.");
-      return;
-    }
+  async function loadUndoableSales() {
+    if (!myLoginAt) return;
 
-    setUndoTarget(record);
-    setOwnerPinInput("");
-    setUndoError("");
+    try {
+      const params = new URLSearchParams({ since: myLoginAt });
+      if (BIZ_ID) params.set("businessId", BIZ_ID);
+
+      const res = await fetch(`/api/sales?${params.toString()}`);
+      if (!res.ok) return;
+      const { sales } = await res.json();
+      setUndoableSales(sales ?? []);
+    } catch {
+      // leave whatever list is already showing
+    }
   }
 
-  async function confirmUndoWithPin() {
-    if (!undoTarget) return;
+  function openUndoModal() {
+    setSelectedUndoIds(new Set());
+    setShowUndo(true);
+    loadUndoableSales();
+  }
 
-    if (!ownerPinInput.trim()) {
-      setUndoError("Enter the owner PIN");
+  function toggleUndoSelection(id: string) {
+    setSelectedUndoIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  const selectedUndoTotal = undoableSales
+    .filter(sale => selectedUndoIds.has(sale.id))
+    .reduce((sum, sale) => sum + Number(sale.total), 0);
+
+  async function confirmUndoSelected() {
+    if (selectedUndoIds.size === 0) return;
+
+    if (!confirm(`Undo ${selectedUndoIds.size} selected item(s) totaling R${selectedUndoTotal.toFixed(2)}? This is logged and cannot be undone.`)) {
       return;
     }
 
     setUndoSubmitting(true);
-    setUndoError("");
 
     try {
       const res = await fetch("/api/sales/undo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ saleIds: undoTarget.saleIds, ownerPin: ownerPinInput.trim() }),
+        body: JSON.stringify({ saleIds: Array.from(selectedUndoIds) }),
       });
 
       if (!res.ok) {
         const result = await res.json();
-        setUndoError(result.error ?? "Unable to undo sale");
+        alert(result.error ?? "Unable to undo sale");
         return;
       }
     } catch {
-      setUndoError("Unable to undo sale");
+      alert("Unable to undo sale");
       return;
     } finally {
       setUndoSubmitting(false);
     }
 
-    setUndoHistory(prev => prev.filter(r => r.saleIds[0] !== undoTarget.saleIds[0]));
-    setShowUndo(false);
-    setUndoTarget(null);
-    setOwnerPinInput("");
+    setUndoableSales(prev => prev.filter(sale => !selectedUndoIds.has(sale.id)));
+    setSelectedUndoIds(new Set());
     loadProducts();
-    alert("Sale undone successfully");
+    alert("Sale(s) undone successfully");
   }
 
   const filtered = products.filter(p => {
@@ -646,10 +715,11 @@ function confirmCashSale() {
             {printerOnline ? "Printer ready" : "Printer offline"}
           </span>
           <span className={styles.staffPill}>👤 {staffName}</span>
-          <button className="btn" onClick={openDrawer}>Open Drawer</button>
-          <button className="btn" onClick={() => setShowUndo(true)}>
-            Undo History ({undoHistory.length})
+          <button className="btn" onClick={togglePrintEnabled} title="Toggle automatic receipt printing to save paper — the drawer still opens on cash sales either way">
+            🖨️ Receipts: {printEnabled ? "ON" : "OFF"}
           </button>
+          <button className="btn" onClick={openDrawer}>Open Drawer</button>
+          <button className="btn" onClick={openUndoModal}>Undo History</button>
           <button className="btn btn-danger" onClick={requestLogout}>Logout</button>
         </div>
       </div>
@@ -856,59 +926,61 @@ function confirmCashSale() {
       {/* UNDO HISTORY MODAL */}
       {showUndo && (
         <div className="modal-overlay" onClick={() => setShowUndo(false)}>
-          <div className="modal-box" onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "var(--gold)", marginBottom: 16, fontSize: 19 }}>Undo History</h2>
-            {undoHistory.length === 0 ? (
-              <p style={{ color: "var(--text-faint)" }}>No recent sales to undo.</p>
-            ) : (
-              undoHistory.map((record, i) => (
-                <div key={i} className={styles.cartItem} style={{ flexDirection: "column", alignItems: "stretch", background: "var(--surface-2)", borderRadius: 10, padding: 14, marginBottom: 10, border: "none" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ color: "var(--text-faint)", fontSize: 13 }}>{record.time} — {record.staffName}</span>
-                    <span style={{ color: "var(--gold)", fontWeight: 700 }}>R{record.grandTotal.toFixed(2)}</span>
-                  </div>
-                  {record.items.map((item, j) => (
-                    <p key={j} style={{ color: "var(--text-faint)", fontSize: 12, margin: "2px 0" }}>
-                      {item.name} x{item.quantity}
-                    </p>
-                  ))}
-                  <button className="btn btn-danger" style={{ marginTop: 10, width: "100%" }} onClick={() => undoSale(record)}>
-                    Undo This Sale
-                  </button>
-                </div>
-              ))
-            )}
-            <button className="btn btn-ghost" style={{ width: "100%", marginTop: 10 }} onClick={() => setShowUndo(false)}>Close</button>
-          </div>
-        </div>
-      )}
-
-      {/* OWNER PIN — AUTHORIZE UNDO MODAL */}
-      {undoTarget && (
-        <div className="modal-overlay" onClick={() => { setUndoTarget(null); setUndoError(""); }}>
-          <div className="modal-box" onClick={e => e.stopPropagation()}>
-            <h2 style={{ color: "#ff8589", marginBottom: 8, fontSize: 19 }}>Authorize Undo</h2>
-            <p style={{ color: "var(--text-faint)", fontSize: 13, marginBottom: 16 }}>
-              Undo sale of R{undoTarget.grandTotal.toFixed(2)} from {undoTarget.time}? An owner must enter their PIN to approve this.
+          <div className="modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <h2 style={{ color: "var(--gold)", marginBottom: 6, fontSize: 19 }}>Undo History</h2>
+            <p style={{ color: "var(--text-faint)", fontSize: 12.5, marginBottom: 14 }}>
+              Your sold items since you logged in. Select any to undo — every undo is recorded in the owner&apos;s undo log.
             </p>
-            <input
-              className="input"
-              type="password"
-              placeholder="Owner PIN"
-              value={ownerPinInput}
-              onChange={e => setOwnerPinInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && confirmUndoWithPin()}
-              style={{ fontSize: 18, marginBottom: 12 }}
-              autoFocus
-            />
-            {undoError && <p style={{ color: "#ff8589", fontSize: 13, marginBottom: 12 }}>{undoError}</p>}
+            {!myLoginAt ? (
+              <p style={{ color: "var(--text-faint)" }}>Unable to determine your shift start. Try logging out and back in.</p>
+            ) : undoableSales.length === 0 ? (
+              <p style={{ color: "var(--text-faint)" }}>No sold items to undo.</p>
+            ) : (
+              <div style={{ maxHeight: 340, overflowY: "auto", marginBottom: 14 }}>
+                {undoableSales.map(sale => {
+                  const name = products.find(p => p.id === sale.product_id)?.name ?? "Unknown item";
+                  const checked = selectedUndoIds.has(sale.id);
+                  return (
+                    <label
+                      key={sale.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        background: "var(--surface-2)",
+                        borderRadius: 10,
+                        padding: "10px 12px",
+                        marginBottom: 8,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input type="checkbox" checked={checked} onChange={() => toggleUndoSelection(sale.id)} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: "var(--text-primary)", fontSize: 13.5 }}>{name} x{sale.quantity}</div>
+                        <div style={{ color: "var(--text-faint)", fontSize: 11.5 }}>
+                          {new Date(sale.created_at).toLocaleTimeString()} · {sale.payment_method.toUpperCase()}
+                        </div>
+                      </div>
+                      <span style={{ color: "var(--gold)", fontWeight: 700 }}>R{Number(sale.total).toFixed(2)}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
             <div style={{ display: "flex", gap: 10 }}>
-              <button className="btn btn-danger-solid" style={{ flex: 1 }} disabled={undoSubmitting} onClick={confirmUndoWithPin}>
-                {undoSubmitting ? "Checking…" : "Authorize Undo"}
+              <button
+                className="btn btn-danger"
+                style={{ flex: 1 }}
+                disabled={selectedUndoIds.size === 0 || undoSubmitting}
+                onClick={confirmUndoSelected}
+              >
+                {undoSubmitting
+                  ? "Undoing…"
+                  : selectedUndoIds.size > 0
+                    ? `Undo Selected (${selectedUndoIds.size}) — R${selectedUndoTotal.toFixed(2)}`
+                    : "Undo Selected"}
               </button>
-              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => { setUndoTarget(null); setUndoError(""); }}>
-                Cancel
-              </button>
+              <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setShowUndo(false)}>Close</button>
             </div>
           </div>
         </div>

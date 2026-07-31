@@ -34,6 +34,7 @@ export interface ReportStaffSession {
   hoursWorked: number;
   itemsSold: number;
   moneyMade: number;
+  moneyCounted: number | null;
 }
 export interface ReportCashCount {
   created_at: string;
@@ -47,7 +48,7 @@ export interface ReportUndoEntry {
   created_at: string;
   staff_name: string;
   undone_by: string;
-  approved_by: string;
+  approved_by: string | null;
   total: number;
 }
 export interface ReportData {
@@ -356,13 +357,14 @@ export async function buildDailyReportPDF(data: ReportData): Promise<Buffer> {
         s.hoursWorked.toFixed(1),
         String(s.itemsSold),
         fmt(s.moneyMade),
+        s.moneyCounted === null ? "—" : fmt(s.moneyCounted),
       ]);
-      const aColours = aRows.map(() => [INK, INK, INK, INK, INK, GREEN]);
+      const aColours = aRows.map((row) => [INK, INK, INK, INK, INK, GREEN, row[6] === "—" ? DGREY : GREEN]);
       drawTable(
-        ["STAFF", "LOGIN", "LOGOUT", "HOURS", "ITEMS SOLD", "MONEY MADE"],
+        ["STAFF", "LOGIN", "LOGOUT", "HOURS", "ITEMS SOLD", "MONEY MADE", "MONEY COUNTED"],
         aRows,
-        [120, 80, 80, 55, 90, 130],
-        ["left", "center", "center", "center", "center", "right"],
+        [95, 70, 70, 50, 75, 100, 95],
+        ["left", "center", "center", "center", "center", "right", "right"],
         aColours
       );
     } else {
@@ -410,7 +412,7 @@ export async function buildDailyReportPDF(data: ReportData): Promise<Buffer> {
         u.created_at ? new Date(u.created_at).toLocaleString() : "—",
         u.staff_name ?? "",
         u.undone_by ?? "",
-        u.approved_by ?? "",
+        u.approved_by || "—",
         fmt(n(u.total)),
       ]);
       const uColours = uRows.map(() => [INK, INK, INK, INK, ORANGE]);
