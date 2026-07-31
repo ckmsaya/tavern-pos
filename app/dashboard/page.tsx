@@ -34,6 +34,8 @@ type Sale = {
   total: number;
   payment_method: string;
   created_at: string;
+  product_id?: string | null;
+  quantity?: number;
 };
 
 type NewProduct = {
@@ -186,10 +188,16 @@ export default function Dashboard() {
       setCash(c);
       setCard(ca);
 
+      // Profit must be computed from today's actual sales (matching Revenue's
+      // window), not from opening_stock vs. current stock — that delta
+      // reflects everything sold since a product was last restocked, which
+      // can span multiple days and silently inflate/deflate "today's" profit.
       let p = 0;
-      prod.forEach((product) => {
-        const sold = (product.opening_stock ?? 0) - product.stock;
-        p += sold * ((product.price ?? 0) - (product.cost_price ?? 0));
+      salesData.forEach((sale) => {
+        const product = prod.find((item) => item.id === sale.product_id);
+        if (product) {
+          p += Number(sale.total) - Number(product.cost_price ?? 0) * Number(sale.quantity ?? 0);
+        }
       });
       setProfit(p);
     } catch (err) {
@@ -517,9 +525,16 @@ export default function Dashboard() {
         sold: (product.opening_stock ?? 0) - product.stock,
       }));
 
+      // Day-level profit (for the KPI card) is computed from today's actual
+      // sales, matching revenue's window — not from the per-product
+      // opening_stock/stock delta below, which is "since last restock" and
+      // legitimately used for the product-performance pages instead.
       let totalProfit = 0;
-      productsWithSold.forEach((product) => {
-        totalProfit += product.sold * (product.price - product.cost_price);
+      allSalesData.forEach((sale) => {
+        const product = products.find((item) => item.id === sale.product_id);
+        if (product) {
+          totalProfit += Number(sale.total) - Number(product.cost_price ?? 0) * Number(sale.quantity ?? 0);
+        }
       });
 
       const payload = {

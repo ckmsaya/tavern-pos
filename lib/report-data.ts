@@ -16,10 +16,10 @@ export async function getTodayReportData(): Promise<ReportData> {
     { data: cashCounts, error: cashCountsError },
     { data: undoLog, error: undoLogError },
   ] = await Promise.all([
-    supabase.from("products").select("name, category, price, cost_price, opening_stock, stock"),
+    supabase.from("products").select("id, name, category, price, cost_price, opening_stock, stock"),
     supabase
       .from("sales")
-      .select("total, payment_method, staff_name, created_at")
+      .select("total, payment_method, staff_name, created_at, product_id, quantity")
       .gte("created_at", date)
       .order("created_at", { ascending: true }),
     supabase
@@ -69,10 +69,15 @@ export async function getTodayReportData(): Promise<ReportData> {
     };
   });
 
-  const profit = productsWithSold.reduce(
-    (sum, p) => sum + p.sold * (p.price - p.cost_price),
-    0
-  );
+  // Day-level profit must come from today's actual sales (matching revenue's
+  // window), not from productsWithSold's opening_stock/stock delta above —
+  // that reflects everything sold since a product was last restocked, which
+  // can span multiple days and doesn't correspond to "today" at all.
+  const profit = salesList.reduce((sum, s) => {
+    const product = productList.find((p) => p.id === s.product_id);
+    if (!product) return sum;
+    return sum + (Number(s.total) || 0) - (Number(product.cost_price) || 0) * (Number(s.quantity) || 0);
+  }, 0);
 
   const staffSessions = await getStaffSessionsReport(date);
 
