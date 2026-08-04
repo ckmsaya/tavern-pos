@@ -138,6 +138,12 @@ export default function Dashboard() {
         return;
       }
 
+      const me = await res.json();
+      if (me.role !== "owner") {
+        router.replace("/pos");
+        return;
+      }
+
       async function loadAll() {
         await Promise.all([load(), loadUndoLog(), loadCashCounts(), loadStaff(), loadStaffSessions()]);
       }

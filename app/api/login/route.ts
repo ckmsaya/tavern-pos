@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import {
   clientKey,
@@ -60,27 +61,26 @@ export async function POST(req: NextRequest) {
       .eq("staff_name", member.name)
       .is("logout_at", null);
 
+    // Session identity lives server-side, keyed by this unguessable token —
+    // the client only ever holds the token, never the name/role directly,
+    // so it can't forge owner access by editing its cookies.
+    const token = randomBytes(32).toString("hex");
+
     const { error: sessionError } = await supabase
       .from("staff_sessions")
-      .insert({ staff_name: member.name });
+      .insert({ staff_name: member.name, token });
 
     if (sessionError) {
       console.error("Staff session start failed:", sessionError);
+      return jsonError("Unable to log in right now", 500);
     }
+
     const response = NextResponse.json({
       name: member.name,
       role,
     });
 
-    response.cookies.set("staff_name", member.name, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 8,
-      path: "/",
-    });
-
-    response.cookies.set("staff_role", role, {
+    response.cookies.set("session_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

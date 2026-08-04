@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const data = validateReportData(await parseJsonBody<unknown>(req, 256 * 1024));
     const pdf  = await buildDailyReportPDF(data);

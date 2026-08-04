@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const { searchParams } = new URL(req.url);
     const since = searchParams.get("since");
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const staff = requireStaffSession(req);
+    const staff = await requireStaffSession(req);
 
     const { counted_amount } = await parseJsonBody<CashCountBody>(req, 1024);
     const countedAmount = Number(counted_amount);
@@ -139,7 +139,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const supabase = createServiceSupabaseClient();
     const { error } = await supabase.from("cash_counts").delete().not("id", "is", null);

@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const staff = requireStaffSession(req);
+    const staff = await requireStaffSession(req);
 
     const body = await parseJsonBody<UndoBody>(req, 4096);
     const saleIds = Array.isArray(body.saleIds)

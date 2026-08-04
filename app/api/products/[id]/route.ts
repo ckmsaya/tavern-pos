@@ -25,7 +25,7 @@ export async function DELETE(
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const { id } = await context.params;
     const productId = id.trim();

@@ -23,7 +23,7 @@ export async function DELETE(
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const { id } = await context.params;
     const staffId = Number(id);

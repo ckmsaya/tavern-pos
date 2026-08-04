@@ -31,7 +31,7 @@ export async function POST(
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const { id } = await context.params;
     const productId = id.trim();

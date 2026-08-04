@@ -38,6 +38,14 @@ const app = express();
 const scriptPath = path.join(os.tmpdir(), "tavern-winprint.ps1");
 fs.writeFileSync(scriptPath, winprintScript);
 
+if (config.allowedOrigins.includes("*")) {
+  console.warn(
+    "WARNING: allowedOrigins is set to \"*\" in config.json — any website " +
+    "open in a browser on this PC can trigger printing and open the cash " +
+    "drawer. Set allowedOrigins to your POS's actual URL(s) instead."
+  );
+}
+
 app.use(
   cors({
     origin: config.allowedOrigins.includes("*") ? true : config.allowedOrigins,

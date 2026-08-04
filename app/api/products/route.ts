@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    requireStaffSession(req);
+    await requireStaffSession(req);
 
     const { searchParams } = new URL(req.url);
     const businessId = searchParams.get("businessId");
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const body = await parseJsonBody<ProductBody>(req, 4096);
     const name = text(body.name);

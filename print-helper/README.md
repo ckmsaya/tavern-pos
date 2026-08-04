@@ -76,13 +76,19 @@ Notepad, and set `printerName` to **exactly** the name from step 2.2:
   "port": 7777,
   "printerName": "TavernReceiptPrinter",
   "paperWidth": 42,
-  "allowedOrigins": ["*"]
+  "allowedOrigins": ["https://your-pos-deployment.example.com"]
 }
 ```
 
 `paperWidth` is the number of text characters that fit on one receipt
 line — `42` for 80mm paper, `32` for 58mm paper (check your paper roll
 if unsure).
+
+`allowedOrigins` must list the exact URL(s) the POS is served from.
+Don't set this to `["*"]` — this program accepts unauthenticated
+requests to print and open the cash drawer, so a wildcard lets *any*
+website open in a browser on this PC trigger those actions, not just
+the POS.
 
 ### 2.5 Run it for real
 

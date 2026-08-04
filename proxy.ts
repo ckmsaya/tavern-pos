@@ -1,24 +1,22 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+// This only gates on whether a session cookie is present, not what role it
+// carries — the cookie is an opaque token now (see lib/api-security.ts),
+// and middleware has no business resolving it against the database on
+// every navigation. The owner-vs-staff distinction is enforced for real by
+// requireOwner() on each API route, and mirrored client-side (see
+// dashboard/page.tsx's init(), which redirects non-owners to /pos after
+// checking the server-validated role from /api/me).
 export function proxy(request: NextRequest) {
-  const role = request.cookies.get("staff_role")?.value;
+  const hasSession = Boolean(request.cookies.get("session_token")?.value);
   const path = request.nextUrl.pathname;
 
-  // Not logged in
-  if (!role && !path.startsWith("/login")) {
+  if (!hasSession && !path.startsWith("/login")) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Staff trying to access owner routes
-  if (role === "staff" && path.startsWith("/dashboard")) {
+  if (hasSession && path.startsWith("/login")) {
     return NextResponse.redirect(new URL("/pos", request.url));
-  }
-
-  // Already logged in, don't show login
-  if (role && path.startsWith("/login")) {
-    return NextResponse.redirect(
-      new URL(role === "owner" ? "/dashboard" : "/pos", request.url)
-    );
   }
 
   return NextResponse.next();

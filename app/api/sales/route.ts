@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const staff = requireStaffSession(req);
+    const staff = await requireStaffSession(req);
 
     const { searchParams } = new URL(req.url);
     const businessId = searchParams.get("businessId");
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const staff = requireStaffSession(req);
+    const staff = await requireStaffSession(req);
     const body = await parseJsonBody<SaleBody>(req, 16 * 1024);
     const rawItems = Array.isArray(body.items) ? body.items.slice(0, 100) : [];
     const items = rawItems.map((item) => {

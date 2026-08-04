@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const supabase = createServiceSupabaseClient();
     const { error: salesError } = await supabase.from("sales").delete().not("id", "is", null);

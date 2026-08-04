@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const { searchParams } = new URL(req.url);
     const since = searchParams.get("since") ?? new Date().toISOString().split("T")[0];
@@ -50,7 +50,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const supabase = createServiceSupabaseClient();
     const { error } = await supabase.from("staff_sessions").delete().not("id", "is", null);

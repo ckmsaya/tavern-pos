@@ -1,7 +1,0 @@
-{
-  "port": 7777,
-  "printerName": "TavernReceiptPrinter",
-  "paperWidth": 42,
-  "businessName": "Grace Tavern",
-  "allowedOrigins": ["*"]
-}

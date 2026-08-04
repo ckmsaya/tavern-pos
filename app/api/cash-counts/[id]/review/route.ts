@@ -31,8 +31,8 @@ export async function POST(
   }
 
   try {
-    requireOwner(req);
-    const ownerName = req.cookies.get("staff_name")!.value;
+    const owner = await requireOwner(req);
+    const ownerName = owner.name;
 
     const { id } = await context.params;
     const countId = Number(id);

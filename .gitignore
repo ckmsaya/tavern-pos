@@ -5,6 +5,10 @@
 print-helper/node_modules
 print-helper/dist
 print-helper/*.prn
+# Machine-specific runtime config (printer name, business name, allowed
+# origins) generated on first run — see print-helper/default-config.js
+# for the template committed to the repo instead.
+print-helper/config.json
 /.pnp
 .pnp.*
 .yarn/*
@@ -35,9 +39,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
+
+# editor
+.vscode
 
 # typescript
 *.tsbuildinfo

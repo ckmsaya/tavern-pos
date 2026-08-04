@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceSupabaseClient } from "@/lib/server-supabase";
 
 export async function POST(req: NextRequest) {
-  const staffName = req.cookies.get("staff_name")?.value;
+  const token = req.cookies.get("session_token")?.value;
 
-  if (staffName) {
+  if (token) {
     try {
       const supabase = createServiceSupabaseClient();
       await supabase
         .from("staff_sessions")
         .update({ logout_at: new Date().toISOString() })
-        .eq("staff_name", staffName)
+        .eq("token", token)
         .is("logout_at", null);
     } catch (error) {
       console.error("Staff session close failed:", error);
@@ -18,7 +18,6 @@ export async function POST(req: NextRequest) {
   }
 
   const response = NextResponse.json({ success: true });
-  response.cookies.delete("staff_name");
-  response.cookies.delete("staff_role");
+  response.cookies.delete("session_token");
   return response;
 }

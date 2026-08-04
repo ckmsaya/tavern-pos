@@ -94,6 +94,12 @@ create table if not exists staff_sessions (
   login_at timestamptz not null default now(),
   logout_at timestamptz
 );
+-- Opaque, unguessable session token issued at login. This — not the
+-- staff_name/staff_role cookie values themselves — is what API routes
+-- trust: a client can set any cookie value it likes, but it can't forge a
+-- token that matches a live row in this table. Nullable + unique so old
+-- rows created before this column existed don't collide.
+alter table staff_sessions add column if not exists token text unique;
 
 create table if not exists undo_audit_log (
   id bigint generated always as identity primary key,

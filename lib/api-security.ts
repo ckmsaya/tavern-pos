@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 type RateLimitOptions = {
   limit: number;
@@ -55,24 +56,60 @@ export function getRequiredEnv(name: string) {
   return value;
 }
 
-export function requireOwner(req: NextRequest) {
-  if (req.cookies.get("staff_role")?.value !== "owner") {
-    throw new AuthError("Owner access required", 403);
+export type SessionStaff = { name: string; role: "owner" | "staff" };
+
+// Cookie values are fully client-controlled — a request can carry any
+// Cookie header it likes, browser or not. So the only thing an API route
+// may trust is the opaque session token, resolved against the
+// server-side staff_sessions table (and the staff table, for the
+// up-to-date role). See login/route.ts for how the token is issued.
+export async function requireStaffSession(req: NextRequest): Promise<SessionStaff> {
+  const token = req.cookies.get("session_token")?.value;
+
+  if (!token) {
+    throw new AuthError("Login required", 401);
   }
-}
 
-export function requireStaffSession(req: NextRequest) {
-  const name = req.cookies.get("staff_name")?.value;
-  const role = req.cookies.get("staff_role")?.value;
+  const supabase = createClient(
+    getRequiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
+    getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY")
+  );
 
-  if (!name || !role) {
+  const { data: session } = await supabase
+    .from("staff_sessions")
+    .select("staff_name")
+    .eq("token", token)
+    .is("logout_at", null)
+    .maybeSingle();
+
+  if (!session) {
+    throw new AuthError("Login required", 401);
+  }
+
+  const { data: staff } = await supabase
+    .from("staff")
+    .select("name, role")
+    .eq("name", session.staff_name)
+    .maybeSingle();
+
+  if (!staff) {
     throw new AuthError("Login required", 401);
   }
 
   return {
-    name,
-    role: role === "owner" ? "owner" : "staff",
+    name: staff.name,
+    role: staff.role === "owner" ? "owner" : "staff",
   };
+}
+
+export async function requireOwner(req: NextRequest): Promise<SessionStaff> {
+  const staff = await requireStaffSession(req);
+
+  if (staff.role !== "owner") {
+    throw new AuthError("Owner access required", 403);
+  }
+
+  return staff;
 }
 
 export async function parseJsonBody<T>(req: NextRequest, maxBytes: number): Promise<T> {

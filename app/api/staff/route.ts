@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const supabase = createServiceSupabaseClient();
     const { data, error } = await supabase
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    requireOwner(req);
+    await requireOwner(req);
 
     const body = await parseJsonBody<StaffBody>(req, 1024);
     const name = text(body.name);
