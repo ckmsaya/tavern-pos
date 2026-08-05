@@ -99,6 +99,22 @@
   flex: 0 0 auto;
 }
 
+/* ── DATE NAV ───────────────────────────────────────────────────────────── */
+.dateNav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.dateNavLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  min-width: 150px;
+  text-align: center;
+}
+
 /* ── KPI CARDS ──────────────────────────────────────────────────────────── */
 .cards {
   display: grid;

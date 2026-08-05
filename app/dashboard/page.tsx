@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import styles from "./dashboard.module.css";
@@ -84,12 +84,28 @@ type StaffSession = {
   moneyCounted: number | null;
 };
 
+function todayDateString() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function addDaysToDateString(date: string, days: number) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
 export default function Dashboard() {
   const router = useRouter();
   const [staffStats, setStaffStats] = useState<Record<string, number>>({});
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
   const [revenue, setRevenue] = useState(0);
+  // Which calendar day the KPI cards/chart/activity below are showing.
+  // Defaults to today; the prev/next controls in the header let an owner
+  // page back through history without that view fighting the 5s auto-
+  // refresh — see viewDateRef below for why a ref is needed alongside this.
+  const [viewDate, setViewDate] = useState(todayDateString);
+  const viewDateRef = useRef(viewDate);
   const [cash, setCash] = useState(0);
   const [card, setCard] = useState(0);
   const [profit, setProfit] = useState(0);
@@ -156,20 +172,35 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [router]);
 
+  function changeViewDate(next: string) {
+    // Update the ref synchronously so an immediate load() call (right
+    // below) doesn't race the state update/re-render.
+    viewDateRef.current = next;
+    setViewDate(next);
+    load();
+  }
+
+  const isToday = viewDate === todayDateString();
+
   // ── LOAD DATA ─────────────────────────────────────────────────────────────
   async function load() {
     try {
-      const today = new Date().toISOString().split("T")[0];
+      // Read from the ref, not the viewDate state var directly — this is
+      // called both on demand (date nav clicks) and from a setInterval
+      // captured once on mount, and a plain closure over state would keep
+      // reading whatever viewDate was at mount time forever.
+      const date = viewDateRef.current;
+      const until = addDaysToDateString(date, 1);
       const [prodRes, salesRes] = await Promise.all([
         fetch("/api/products"),
-        fetch(`/api/sales?since=${today}`),
+        fetch(`/api/sales?since=${date}&until=${until}`),
       ]);
 
       if (!prodRes.ok || !salesRes.ok) return;
 
       const { products: prod } = await prodRes.json() as { products: Product[] | null };
       const { sales: salesData } = await salesRes.json() as { sales: Sale[] | null };
-      // ✅ No .limit() — fetch ALL of today's sales
+      // ✅ No .limit() — fetch ALL of the selected day's sales
 
       if (!prod || !salesData) return;
 
@@ -651,12 +682,40 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── DATE NAV ─────────────────────────────────────────────────────── */}
+      <div className={styles.dateNav}>
+        <button className="btn btn-sm" onClick={() => changeViewDate(addDaysToDateString(viewDate, -1))}>
+          ← Previous Day
+        </button>
+        <span className={styles.dateNavLabel}>
+          {isToday
+            ? "Today"
+            : new Date(`${viewDate}T00:00:00Z`).toLocaleDateString(undefined, {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+              })}
+        </span>
+        <button
+          className="btn btn-sm"
+          onClick={() => changeViewDate(addDaysToDateString(viewDate, 1))}
+          disabled={isToday}
+        >
+          Next Day →
+        </button>
+        {!isToday && (
+          <button className="btn btn-sm" onClick={() => changeViewDate(todayDateString())}>
+            Jump to Today
+          </button>
+        )}
+      </div>
+
       {/* ── KPI CARDS ────────────────────────────────────────────────────── */}
       <div className={styles.cards}>
         <div className={styles.panel}>
           <h3 className={styles.panelTitle}>Staff Performance</h3>
           {Object.entries(staffStats).length === 0 ? (
-            <p className={styles.emptyState}>No sales yet today.</p>
+            <p className={styles.emptyState}>{isToday ? "No sales yet today." : "No sales on this day."}</p>
           ) : (
             Object.entries(staffStats)
               .sort(([, a], [, b]) => b - a)

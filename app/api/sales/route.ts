@@ -59,6 +59,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const businessId = searchParams.get("businessId");
     const since = searchParams.get("since");
+    const until = searchParams.get("until");
     const staffNameParam = searchParams.get("staffName");
 
     const supabase = createServiceSupabaseClient();
@@ -66,6 +67,7 @@ export async function GET(req: NextRequest) {
 
     if (businessId) query = query.eq("business_id", businessId);
     if (since) query = query.gte("created_at", since);
+    if (until) query = query.lt("created_at", until);
 
     // Non-owners can only ever see their own sales, regardless of what's
     // passed — the POS undo list relies on this to stay self-scoped without
