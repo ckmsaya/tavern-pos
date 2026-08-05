@@ -11,6 +11,7 @@ import {
   RequestBodyError,
 } from "@/lib/api-security";
 import { createServiceSupabaseClient } from "@/lib/server-supabase";
+import { businessDateString, businessDayStartUTC } from "@/lib/business-day";
 
 type CashCountBody = {
   counted_amount?: unknown;
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    const since = lastConfirmed?.created_at ?? new Date().toISOString().split("T")[0];
+    const since = lastConfirmed?.created_at ?? businessDayStartUTC(businessDateString());
 
     const { data: cashSales, error: salesError } = await supabase
       .from("sales")

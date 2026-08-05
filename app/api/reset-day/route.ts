@@ -8,6 +8,7 @@ import {
   requireOwner,
 } from "@/lib/api-security";
 import { createServiceSupabaseClient } from "@/lib/server-supabase";
+import { businessDateString, businessDayStartUTC } from "@/lib/business-day";
 
 export async function POST(req: NextRequest) {
   const limit = rateLimit(clientKey(req, "reset-day"), {
@@ -23,7 +24,15 @@ export async function POST(req: NextRequest) {
     await requireOwner(req);
 
     const supabase = createServiceSupabaseClient();
-    const { error: salesError } = await supabase.from("sales").delete().not("id", "is", null);
+    // Scoped to today only — this was previously an unconditional delete
+    // that wiped the entire sales table regardless of date, silently
+    // contradicting the "delete all today's sales" warning shown before
+    // this is called (see the Reset Day modal in app/dashboard/page.tsx).
+    const todayStart = businessDayStartUTC(businessDateString());
+    const { error: salesError } = await supabase
+      .from("sales")
+      .delete()
+      .gte("created_at", todayStart);
 
     if (salesError) {
       console.error("Reset sales delete failed:", salesError);

@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-security";
 import { getStaffSessionsReport } from "@/lib/staff-sessions";
 import { createServiceSupabaseClient } from "@/lib/server-supabase";
+import { businessDateString, businessDayStartUTC } from "@/lib/business-day";
 
 export async function GET(req: NextRequest) {
   const limit = rateLimit(clientKey(req, "staff-sessions-list"), {
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
     await requireOwner(req);
 
     const { searchParams } = new URL(req.url);
-    const since = searchParams.get("since") ?? new Date().toISOString().split("T")[0];
+    const since = searchParams.get("since") ?? businessDayStartUTC(businessDateString());
 
     const sessions = await getStaffSessionsReport(since);
 

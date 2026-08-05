@@ -1,13 +1,11 @@
 import { createServiceSupabaseClient } from "@/lib/server-supabase";
 import { ReportData } from "@/lib/daily-report-pdf";
 import { getStaffSessionsReport } from "@/lib/staff-sessions";
-
-export function todayDateString(): string {
-  return new Date().toISOString().split("T")[0];
-}
+import { businessDateString, businessDayStartUTC } from "@/lib/business-day";
 
 export async function getTodayReportData(): Promise<ReportData> {
-  const date = todayDateString();
+  const date = businessDateString();
+  const since = businessDayStartUTC(date);
   const supabase = createServiceSupabaseClient();
 
   const [
@@ -20,17 +18,17 @@ export async function getTodayReportData(): Promise<ReportData> {
     supabase
       .from("sales")
       .select("total, payment_method, staff_name, created_at, product_id, quantity")
-      .gte("created_at", date)
+      .gte("created_at", since)
       .order("created_at", { ascending: true }),
     supabase
       .from("cash_counts")
       .select("created_at, staff_name, counted_amount, expected_cash, status, owner_amount")
-      .gte("created_at", date)
+      .gte("created_at", since)
       .order("created_at", { ascending: true }),
     supabase
       .from("undo_audit_log")
       .select("created_at, staff_name, undone_by, approved_by, total")
-      .gte("created_at", date)
+      .gte("created_at", since)
       .order("created_at", { ascending: true }),
   ]);
 
@@ -79,7 +77,7 @@ export async function getTodayReportData(): Promise<ReportData> {
     return sum + (Number(s.total) || 0) - (Number(product.cost_price) || 0) * (Number(s.quantity) || 0);
   }, 0);
 
-  const staffSessions = await getStaffSessionsReport(date);
+  const staffSessions = await getStaffSessionsReport(since);
 
   return {
     date,

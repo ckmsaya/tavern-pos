@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import styles from "./dashboard.module.css";
+import { addDaysToDateString, businessDateString, businessDayStartUTC } from "@/lib/business-day";
 
 import {
   Chart as ChartJS,
@@ -84,16 +85,6 @@ type StaffSession = {
   moneyCounted: number | null;
 };
 
-function todayDateString() {
-  return new Date().toISOString().split("T")[0];
-}
-
-function addDaysToDateString(date: string, days: number) {
-  const d = new Date(`${date}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().split("T")[0];
-}
-
 export default function Dashboard() {
   const router = useRouter();
   const [staffStats, setStaffStats] = useState<Record<string, number>>({});
@@ -104,7 +95,7 @@ export default function Dashboard() {
   // Defaults to today; the prev/next controls in the header let an owner
   // page back through history without that view fighting the 5s auto-
   // refresh — see viewDateRef below for why a ref is needed alongside this.
-  const [viewDate, setViewDate] = useState(todayDateString);
+  const [viewDate, setViewDate] = useState(businessDateString);
   const viewDateRef = useRef(viewDate);
   const [cash, setCash] = useState(0);
   const [card, setCard] = useState(0);
@@ -180,7 +171,7 @@ export default function Dashboard() {
     load();
   }
 
-  const isToday = viewDate === todayDateString();
+  const isToday = viewDate === businessDateString();
 
   // ── LOAD DATA ─────────────────────────────────────────────────────────────
   async function load() {
@@ -190,10 +181,16 @@ export default function Dashboard() {
       // captured once on mount, and a plain closure over state would keep
       // reading whatever viewDate was at mount time forever.
       const date = viewDateRef.current;
-      const until = addDaysToDateString(date, 1);
+      // viewDate is a SAST calendar-day string ("2026-08-05"), but the API
+      // compares against created_at (a UTC timestamp) — convert to the
+      // actual UTC instant the SAST day starts/ends at, not a bare date
+      // string, which Postgres would otherwise read as UTC midnight (two
+      // hours off from where the till's day really starts).
+      const since = businessDayStartUTC(date);
+      const until = businessDayStartUTC(addDaysToDateString(date, 1));
       const [prodRes, salesRes] = await Promise.all([
         fetch("/api/products"),
-        fetch(`/api/sales?since=${date}&until=${until}`),
+        fetch(`/api/sales?${new URLSearchParams({ since, until })}`),
       ]);
 
       if (!prodRes.ok || !salesRes.ok) return;
@@ -342,8 +339,8 @@ export default function Dashboard() {
 
   async function loadStaffSessions() {
     try {
-      const today = new Date().toISOString().split("T")[0];
-      const res = await fetch(`/api/staff-sessions?since=${today}`);
+      const since = businessDayStartUTC(businessDateString());
+      const res = await fetch(`/api/staff-sessions?${new URLSearchParams({ since })}`);
       if (!res.ok) return;
       const { sessions } = await res.json() as { sessions: StaffSession[] | null };
       if (sessions) setStaffSessions(sessions);
@@ -524,12 +521,13 @@ export default function Dashboard() {
   async function closeDay() {
     setReportLoading(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
+      const today = businessDateString();
+      const since = businessDayStartUTC(today);
       const [salesRes, sessionsRes, cashCountsRes, undoLogRes] = await Promise.all([
-        fetch(`/api/sales?since=${today}`),
-        fetch(`/api/staff-sessions?since=${today}`),
-        fetch(`/api/cash-counts?since=${today}`),
-        fetch(`/api/undo-log?since=${today}`),
+        fetch(`/api/sales?${new URLSearchParams({ since })}`),
+        fetch(`/api/staff-sessions?${new URLSearchParams({ since })}`),
+        fetch(`/api/cash-counts?${new URLSearchParams({ since })}`),
+        fetch(`/api/undo-log?${new URLSearchParams({ since })}`),
       ]);
       const { sales: allSales } = await salesRes.json() as { sales: Sale[] | null };
       const { sessions: staffSessions } = await sessionsRes.json() as { sessions: unknown[] | null };
@@ -704,7 +702,7 @@ export default function Dashboard() {
           Next Day →
         </button>
         {!isToday && (
-          <button className="btn btn-sm" onClick={() => changeViewDate(todayDateString())}>
+          <button className="btn btn-sm" onClick={() => changeViewDate(businessDateString())}>
             Jump to Today
           </button>
         )}

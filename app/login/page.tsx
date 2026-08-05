@@ -17,28 +17,26 @@ export default function Login() {
     setLoading(true);
     setError("");
 
-    console.log("Sending PIN:", pin);
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
 
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin }),
-    });
+      const data = await res.json();
 
-    console.log("Response status:", res.status);
-
-    const data = await res.json();
-
-    console.log("Response data:", data);
-
-    if (!res.ok) {
-      setError("Invalid PIN. Try again.");
-      setPin("");
-    } else {
-      router.push(data.role === "owner" ? "/dashboard" : "/pos");
+      if (!res.ok) {
+        setError(data.error ?? "Invalid PIN. Try again.");
+        setPin("");
+      } else {
+        router.push(data.role === "owner" ? "/dashboard" : "/pos");
+      }
+    } catch {
+      setError("Unable to reach the server. Check your connection and try again.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (

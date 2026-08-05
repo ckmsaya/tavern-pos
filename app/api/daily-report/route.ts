@@ -10,6 +10,7 @@ import {
   RequestBodyError,
 } from "@/lib/api-security";
 import { buildDailyReportPDF, ReportData, ReportProduct, ReportStaff, ReportSale, ReportStaffSession, ReportCashCount, ReportUndoEntry } from "@/lib/daily-report-pdf";
+import { businessDateString } from "@/lib/business-day";
 
 function n(v: unknown): number { return Number(v) || 0; }
 
@@ -33,7 +34,7 @@ function validateReportData(value: unknown): ReportData {
   return {
     date: /^\d{4}-\d{2}-\d{2}$/.test(text(data.date, 10))
       ? text(data.date, 10)
-      : new Date().toISOString().split("T")[0],
+      : businessDateString(),
     revenue: n(data.revenue),
     cash: n(data.cash),
     card: n(data.card),

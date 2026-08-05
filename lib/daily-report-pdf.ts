@@ -1,4 +1,5 @@
 import PDFDocument from "pdfkit";
+import { businessDateString } from "@/lib/business-day";
 
 // ─── COLOURS ─────────────────────────────────────────────────────────────────
 const GOLD   = "#D4AF37";
@@ -234,7 +235,7 @@ export async function buildDailyReportPDF(data: ReportData): Promise<Buffer> {
     doc.font("Helvetica-Bold").fontSize(11).fillColor(WHITE).text("DAILY BUSINESS REPORT", LEFT + 10, 56);
     doc.font("Helvetica").fontSize(7).fillColor("#B8860B").text("Powered by TillFlow", LEFT + 10, 68);
     doc.font("Helvetica").fontSize(9).fillColor(GOLD)
-      .text(data.date ?? new Date().toISOString().split("T")[0], RIGHT - 110, 58, { width: 100, align: "right" });
+      .text(data.date ?? businessDateString(), RIGHT - 110, 58, { width: 100, align: "right" });
     doc.y = 85;
 
     // ── KPI CARDS ────────────────────────────────────────────────────────
